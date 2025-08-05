@@ -55,3 +55,34 @@ fn main() -> Result<()> {
     Ok(())
 
 }
+
+
+fn parse_ppm_header(bytes: &[u8]) -> Result<PpmHeader> {
+    let mut iter = bytes.iter();
+
+    let mut get_next_token = || -> Result<String> {
+        let token_bytes: Vec<u8> = iter
+            .by_ref()
+            .skip_while(|&&b| b.is_ascii_whitespace())
+            .take_while(|&&b| !b.is_ascii_whitespace())
+            .cloned()
+            .collect();
+        String::from_utf8(token_bytes).map_err(|e| e.into())
+    };
+
+    let format = get_next_token()?;
+    let width_str = get_next_token()?;
+    let height_str = get_next_token()?;
+    let max_val_str = get_next_token()?;
+
+    let header_len = format.len() + width_str.len() + height_str.len() + max_val_str.len() + 4;
+
+    Ok(PpmHeader {
+        format,
+        width: width_str.parse()?,
+        height: height_str.parse()?,
+        max_value: max_val_str.parse()?,
+        header_len,
+    })
+}
+
