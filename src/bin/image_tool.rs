@@ -1,11 +1,9 @@
-use image::{imageops::FilterType, GenericImageView, GrayImage, Luma, Pixel};
+use image::{ImageBuffer, Rgba, DynamicImage};
+use image::{imageops::FilterType, GenericImageView, GrayImage};
 use std::env;
 use std::fs;
-use std::io::{self, Write};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-
 #[derive(Clone)]
 struct AsciiConfig {
     max_width: u32,
@@ -75,6 +73,18 @@ fn main() -> Result<()> {
             println!("Saving ASCII art to: {}", output_path);
             fs::write(output_path, ascii_art)?;
         }
+        "blur" => {
+            if args.len() != 5 {
+                eprintln!("Error: Blur mode requires a sigma value.");
+                eprintln!("Usage: {} blur <input> <output> <sigma>", args[0]);
+            }
+            let sigma: f32 = args[4].parse().map_err(|_| "Invalid sigma value. Must be a number like 5.0")?;
+
+            println!("Applying blur to the image with sigma: {}", sigma );
+            let blurred_img = img.blur(sigma);
+            println!("Saving the blurred image to: {}", output_path);
+            blurred_img.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -89,17 +99,17 @@ fn print_usage(program_name: &str) {
     eprintln!("A high-quality, dithering ASCII art generator.");
     eprintln!("\nUsage: {} <mode> <input_file> <output_file> [options]", program_name);
     eprintln!("\nModes:");
-    eprintln!("  grayscale         - Convert to a grayscale image file.");
-    eprintln!("  ascii             - Convert to a high-quality ASCII art text file.");
+    eprintln!("  grayscale <in> <out>          - Convert to a grayscale image file.");
+    eprintln!("  blur <in> <out> <sigma>       - Apply a Gaussian blur with a given sigma (e.g., 5.0).");
+    eprintln!("  ascii <in> <out> [options]    - Convert to a high-quality ASCII art text file.");
     eprintln!("\nOptions:");
-    eprintln!("  --width=N         - Set maximum width in characters (default: 120).");
-    eprintln!("  --contrast=F      - Adjust contrast. >1.0 increases, <1.0 decreases (default: 1.2).");
-    eprintln!("  --detailed        - Use a larger, more detailed character set.");
-    eprintln!("  --invert          - Invert the brightness for light-on-dark terminals.");
-    eprintln!("  --no-dither       - Disable dithering for a simpler, banded look.");
+    eprintln!("  --width=N                     - Set maximum width in characters (default: 120).");
+    eprintln!("  --contrast=F                  - Adjust contrast. >1.0 increases, <1.0 decreases (default: 1.2).");
+    eprintln!("  --detailed                    - Use a larger, more detailed character set.");
+    eprintln!("  --invert                      - Invert the brightness for light-on-dark terminals.");
+    eprintln!("  --no-dither                   - Disable dithering for a simpler, banded look.");
 }
 
-/// Converts an image to ASCII art, applying Floyd-Steinberg dithering for superior quality.
 fn to_ascii_dithered(img: &image::DynamicImage, config: &AsciiConfig) -> Result<String> {
  
     let ascii_chars_detailed = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
@@ -111,7 +121,6 @@ fn to_ascii_dithered(img: &image::DynamicImage, config: &AsciiConfig) -> Result<
         ascii_chars_simple.chars().collect()
     };
     let ramp_len = char_ramp.len() as f32;
-
 
     let (width, height) = img.dimensions();
     let aspect_ratio = height as f32 / width as f32;
@@ -155,13 +164,11 @@ fn to_ascii_dithered(img: &image::DynamicImage, config: &AsciiConfig) -> Result<
         let final_pixels: Vec<u8> = f32_buffer.iter().map(|&p| p.clamp(0.0, 255.0) as u8).collect();
         gray_img = GrayImage::from_raw(new_width, new_height, final_pixels).unwrap();
     }
-
     
     let mut ascii_art = String::with_capacity((new_width * new_height + new_height) as usize);
     for (i, pixel) in gray_img.pixels().enumerate() {
         let mut brightness = pixel[0] as f32;
 
-    
         brightness = ((brightness / 255.0 - 0.5) * config.contrast_boost + 0.5) * 255.0;
         brightness = brightness.clamp(0.0, 255.0);
 
@@ -176,6 +183,44 @@ fn to_ascii_dithered(img: &image::DynamicImage, config: &AsciiConfig) -> Result<
             ascii_art.push('\n');
         }
     }
-
     Ok(ascii_art)
+}
+
+fn box_blur(img: &DynamicImage, radius: u32) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut total_red: u32 = 0;
+            let mut total_green: u32 = 0;
+            let mut total_blue: u32 = 0;
+            let mut pixel_count: u32 = 0;
+
+            let y_min = y.saturating_sub(radius);
+            let y_max = (y + radius).min(height -1);
+            let x_min = x.saturating_sub(radius);
+            let x_max = (x + radius).min(width -1);
+
+            for ny in y_min..=y_max {
+                for nx in x_min..=x_max {
+                    let pixel = img.get_pixel(nx, ny);
+                    let Rgba([r, g, b, _]) = pixel;
+
+                    total_red += r as u32;
+                    total_green += g as u32;
+                    total_blue += b as u32;
+                    pixel_count += 1;
+                }
+            }
+
+            let avg_r = (total_red / pixel_count) as u8;
+            let avg_g = (total_green / pixel_count) as u8;
+            let avg_b = (total_blue / pixel_count) as u8;
+
+
+            output.put_pixel(x, y, Rgba([avg_r, avg_g, avg_b, 255])); 
+        }
+    }
+    output
 }
