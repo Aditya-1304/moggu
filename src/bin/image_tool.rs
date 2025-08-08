@@ -97,6 +97,31 @@ fn main() -> Result<()> {
             println!("Saving the blurred image to: {}", output_path);
             blurred_img.save(output_path)?;
         }
+        "rotate90" => {
+            println!("Rotating image 90 degree clock wise...");
+            let rotated = img.rotate90();
+            rotated.save(output_path)?;
+        }
+        "rotate180" => {
+            println!("Rotating image 180 degree clock wise...");
+            let rotated = img.rotate180();
+            rotated.save(output_path)?;
+        }
+        "rotate270" => {
+            println!("Rotating image 270 degree clock wise...");
+            let rotated = img.rotate270();
+            rotated.save(output_path)?;
+        }
+        "flip-horizontal" => {
+            println!("Flipping image horizontally...");
+            let flipped = img.fliph();
+            flipped.save(output_path)?;
+        }
+        "flip-vertical" => {
+            println!("Flipping image vertically...");
+            let flipped = img.flipv();
+            flipped.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -113,6 +138,11 @@ fn print_usage(program_name: &str) {
     eprintln!("  grayscale <in> <out>              - Convert to a grayscale image file.");
     eprintln!("  gaussian-blur <in> <out> <sigma>  - Apply a high-quality Gaussian blur (e.g., sigma 5.0). Alias: 'blur'.");
     eprintln!("  box-blur <in> <out> <radius>      - Apply a simple, from-scratch box blur (e.g., radius 3).");
+    eprintln!("  rotate90 <in> <out>               - Rotate image 90 degrees clockwise.");
+    eprintln!("  rotate180 <in> <out>              - Rotate image 180 degrees.");
+    eprintln!("  rotate270 <in> <out>              - Rotate image 270 degrees clockwise.");
+    eprintln!("  flip-horizontal <in> <out>        - Flip image horizontally.");
+    eprintln!("  flip-vertical <in> <out>          - Flip image vertically.");
     eprintln!("  ascii <in> <out> [options]    - Convert to a high-quality ASCII art text file.");
     eprintln!("\nOptions:");
     eprintln!("  --width=N                     - Set maximum width in characters (default: 120).");
