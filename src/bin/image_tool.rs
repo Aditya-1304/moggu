@@ -272,59 +272,62 @@ fn box_blur(img: &DynamicImage, radius: u32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     output
 }
 
-fn flip_horizontal(img: &DynamicImage) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+fn flip_horizontal(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::new(width, height);
+    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
     for y in 0..height{
         for x in 0..width{
-            let pixel = img.get_pixel(x, y);
-            output.put_pixel(width-1-x, y, pixel);
+            let Rgba([r,g,b,_]) = img.get_pixel(x, y);
+            output.put_pixel(width-1-x, y, Rgb([r,g,b]));
         }
     }
     output
 }
 
-fn flip_vertical(img: &DynamicImage) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+fn flip_vertical(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::new(width, height);
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
     for y in 0..height{
         for x in 0..width{
-            let pixel = img.get_pixel(x, y);
-            output.put_pixel(x, height-1-y, pixel);
+            let Rgba([r,g,b,_]) = img.get_pixel(x, y);
+            output.put_pixel(x, height-1-y, Rgb([r,g,b]));
         }
     }
     output
 }
 
-fn rotate90(img: &DynamicImage) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+fn rotate90(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::new(height, width);
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(height, width);
+
     for y in 0..height{
         for x in 0..width{
-            let pixel = img.get_pixel(x, y);
-            output.put_pixel(height-1-x, y, pixel);
+            let Rgba([r, g,b, _]) = img.get_pixel(x, y);
+            output.put_pixel(height-1-y, x, Rgb([r,g,b]));
         }
     }
     output
 }
-fn rotate180(img: &DynamicImage) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+
+fn rotate180(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::new(height, width);
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new( width, height);
     for y in 0..height{
         for x in 0..width{
-            let pixel = img.get_pixel(x, y);
-            output.put_pixel(width-1-x, height-1-y, pixel);
+            let Rgba([r,g, b,_]) = img.get_pixel(x, y);
+            output.put_pixel(width-1-x, height-1-y, Rgb([r,g,b]));
         }
     }
     output
 }
-fn rotate270(img: &DynamicImage) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+
+fn rotate270(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::new(height, width);
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(height, width);
     for y in 0..height{
         for x in 0..width{
-            let pixel = img.get_pixel(x, y);
-            output.put_pixel(x, width-1-y, pixel);
+            let Rgba([r,g,b,_]) = img.get_pixel(x, y);
+            output.put_pixel(y, width-1-x, Rgb([r,g,b]));
         }
     }
     output
