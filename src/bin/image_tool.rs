@@ -1,4 +1,4 @@
-use image::{ImageBuffer, Rgba, DynamicImage};
+use image::{ImageBuffer, Rgba, Rgb, DynamicImage};
 use image::{imageops::FilterType, GenericImageView, GrayImage};
 use std::env;
 use std::fs;
@@ -73,7 +73,7 @@ fn main() -> Result<()> {
             println!("Saving ASCII art to: {}", output_path);
             fs::write(output_path, ascii_art)?;
         }
-        "blur" => {
+        "blur" | "gaussian-blur" => {
             if args.len() != 5 {
                 eprintln!("Error: Blur mode requires a sigma value.");
                 eprintln!("Usage: {} blur <input> <output> <sigma>", args[0]);
@@ -82,6 +82,18 @@ fn main() -> Result<()> {
 
             println!("Applying blur to the image with sigma: {}", sigma );
             let blurred_img = img.blur(sigma);
+            println!("Saving the blurred image to: {}", output_path);
+            blurred_img.save(output_path)?;
+        }
+        "box-blur" => {
+            if args.len() != 5 {
+                eprintln!("Error: Blur mode requires a sigma value.");
+                eprintln!("Usage: {} blur <input> <output> <sigma>", args[0]);
+            }
+            let radius: u32 = args[4].parse().map_err(|_| "Invalid sigma value. Must be a number like 5.0")?;
+
+            println!("Applying blur to the image with sigma: {}", radius );
+            let blurred_img = box_blur(&img, radius);
             println!("Saving the blurred image to: {}", output_path);
             blurred_img.save(output_path)?;
         }
@@ -96,11 +108,11 @@ fn main() -> Result<()> {
 }
 
 fn print_usage(program_name: &str) {
-    eprintln!("A high-quality, dithering ASCII art generator.");
-    eprintln!("\nUsage: {} <mode> <input_file> <output_file> [options]", program_name);
+    eprintln!("Usage: {} <mode> <input> <output> [options]", program_name);
     eprintln!("\nModes:");
-    eprintln!("  grayscale <in> <out>          - Convert to a grayscale image file.");
-    eprintln!("  blur <in> <out> <sigma>       - Apply a Gaussian blur with a given sigma (e.g., 5.0).");
+    eprintln!("  grayscale <in> <out>              - Convert to a grayscale image file.");
+    eprintln!("  gaussian-blur <in> <out> <sigma>  - Apply a high-quality Gaussian blur (e.g., sigma 5.0). Alias: 'blur'.");
+    eprintln!("  box-blur <in> <out> <radius>      - Apply a simple, from-scratch box blur (e.g., radius 3).");
     eprintln!("  ascii <in> <out> [options]    - Convert to a high-quality ASCII art text file.");
     eprintln!("\nOptions:");
     eprintln!("  --width=N                     - Set maximum width in characters (default: 120).");
@@ -186,7 +198,7 @@ fn to_ascii_dithered(img: &image::DynamicImage, config: &AsciiConfig) -> Result<
     Ok(ascii_art)
 }
 
-fn box_blur(img: &DynamicImage, radius: u32) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+fn box_blur(img: &DynamicImage, radius: u32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
     let mut output = ImageBuffer::new(width, height);
 
@@ -214,12 +226,12 @@ fn box_blur(img: &DynamicImage, radius: u32) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
                 }
             }
 
-            let avg_r = (total_red / pixel_count) as u8;
-            let avg_g = (total_green / pixel_count) as u8;
-            let avg_b = (total_blue / pixel_count) as u8;
+            let avg_red = (total_red / pixel_count) as u8;
+            let avg_green = (total_green / pixel_count) as u8;
+            let avg_blue = (total_blue / pixel_count) as u8;
 
 
-            output.put_pixel(x, y, Rgba([avg_r, avg_g, avg_b, 255])); 
+            output.put_pixel(x, y, Rgb([avg_red, avg_green, avg_blue])); 
         }
     }
     output
