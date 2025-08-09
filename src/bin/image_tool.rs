@@ -138,6 +138,26 @@ fn main() -> Result<()> {
             let flipped = flip_vertical(&img);
             flipped.save(output_path)?;
         }
+        "brightness" => {
+            if args.len() != 5 {
+                eprintln!("Error: Brightness mode requires a value.");
+                return Ok(());
+            }
+            let value:i32 = args[4].parse()?;
+            println!("Adjusting brightness by {}", value);
+            let adjusted_img = adjust_brightness(&img, value);
+            adjusted_img.save(output_path)?;
+        }
+        "contrast" => {
+            if args.len() != 5 {
+                eprintln!("Error: Contrast mode requires a value.");
+                return Ok(());
+            }
+            let factor:f32 = args[4].parse()?;
+            println!("Adjusting Contrast by {}", factor);
+            let adjusted_img = adjust_contrast(&img, factor);
+            adjusted_img.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -379,6 +399,42 @@ fn sharpen(img: &DynamicImage, strenght: f32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
             let new_red = (original_pixel[0] as f32 * (1.0 - strenght) + sum_red * strenght).clamp(0.0, 255.0) as u8;
             let new_green = (original_pixel[1] as f32 * (1.0 - strenght) + sum_green * strenght).clamp(0.0, 255.0) as u8;
             let new_blue = (original_pixel[2] as f32 * (1.0 - strenght) + sum_blue * strenght).clamp(0.0, 255.0) as u8;
+
+            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+        }
+    }
+    output
+}
+
+fn adjust_brightness(img: &DynamicImage, value: i32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            let Rgba([r,g,b,_]) = img.get_pixel(x, y);
+
+            let new_red = (r as i32 + value).clamp(0, 255) as u8;
+            let new_green = (g as i32 + value).clamp(0, 255) as u8;
+            let new_blue = (b as i32 + value).clamp(0, 255) as u8;
+
+            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+        }
+    }
+    output
+}
+
+fn adjust_contrast(img: &DynamicImage, factor: f32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+
+            let new_red = (factor * (r as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
+            let new_green = (factor * (g as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
+            let new_blue = (factor * (b as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
 
             output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
         }
