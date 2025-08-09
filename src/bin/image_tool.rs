@@ -2,6 +2,7 @@ use image::{ImageBuffer, Rgba, Rgb, DynamicImage};
 use image::{imageops::FilterType, GenericImageView, GrayImage};
 use std::env;
 use std::fs;
+use rand::Rng;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Clone)]
@@ -189,6 +190,15 @@ fn main() -> Result<()> {
             println!("Applying vignette with strength: {}", strength);
             let vignetted_img = apply_vignette(&img, strength);
             vignetted_img.save(output_path)?;
+        }
+        "noise" => {
+            if args.len() != 5 {
+                eprintln!("Error: Noise filter requires a strength value.");
+                return Ok(());
+            }
+            let strenght: u8 = args[4].parse()?;
+            let noised_img = add_noise(&img, strenght);
+            noised_img.save(output_path)?;
         }
         _ => {
             print_usage(&args[0]);
@@ -609,6 +619,28 @@ fn apply_vignette(img: &DynamicImage, strenght: f32) -> ImageBuffer<Rgb<u8>, Vec
             let new_red = (r as f32 * factor).clamp(0.0, 255.0) as u8;
             let new_green = (g as f32 * factor).clamp(0.0, 255.0) as u8;
             let new_blue = (b as f32 * factor).clamp(0.0, 255.0) as u8;
+
+            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+        }
+    }
+    output
+}
+
+fn add_noise(img: &DynamicImage, strenght: u8) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
+
+    let mut rng = rand::rng();
+
+    for y in 0..height {
+        for x in 0..width {
+            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+
+            let noise = rng.random_range(-(strenght as i16)..=(strenght as i16));
+
+            let new_red = (r as i16 + noise).clamp(0, 255) as u8;
+            let new_green = (g as i16 + noise).clamp(0, 255) as u8;
+            let new_blue = (b as i16 + noise).clamp(0, 255) as u8;
 
             output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
         }
