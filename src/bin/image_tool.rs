@@ -97,6 +97,17 @@ fn main() -> Result<()> {
             println!("Saving the blurred image to: {}", output_path);
             blurred_img.save(output_path)?;
         }
+        "sharpen" => {
+            if args.len() != 5 {
+                eprintln!("Error: Sharpen mode requires a strenght value.");
+                eprintln!("Usage: {} sharpen <input> <output> <strength>", args[0]);
+                return Ok(());
+            }
+            let strength: f32 = args[4].parse().map_err(|_| "Invalid strength value. Must be a number like 1.0")?;
+            println!("Applying sharpen filter with strength: {}", strength);
+            let sharpened_img = sharpen(&img, strength);
+            sharpened_img.save(output_path)?;
+        }
         "rotate90" => {
             println!("Rotating image 90 degree clock wise...");
             // let rotated = img.rotate90();
@@ -333,3 +344,44 @@ fn rotate270(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     output
 }
 
+
+fn sharpen(img: &DynamicImage, strenght: f32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
+
+    let kernel = [
+        [0.0, -1.0, 0.0],
+        [-1.0, 5.0, -1.0],
+        [0.0, -1.0, 0.0],
+    ];
+
+    for y in 1..height - 1 {
+        for x in 1..width - 1 {
+            let mut sum_red = 0.0;
+            let mut sum_green = 0.0;
+            let mut sum_blue = 0.0;
+
+            for kernaly in 0..3{
+                for kernalx in 0..3{
+                    let pixelx = x + kernalx - 1;
+                    let pixely = y + kernaly - 1;
+
+                    let Rgba([r,g,b,_]) = img.get_pixel(pixelx, pixely);
+                    let weight = kernel[kernaly as usize][kernalx as usize];
+
+                    sum_red += r as f32 * weight;
+                    sum_green += g as f32 * weight;
+                    sum_blue += b as f32 * weight;
+                }
+            }
+
+            let original_pixel = img.get_pixel(x, y);
+            let new_red = (original_pixel[0] as f32 * (1.0 - strenght) + sum_red * strenght).clamp(0.0, 255.0) as u8;
+            let new_green = (original_pixel[1] as f32 * (1.0 - strenght) + sum_green * strenght).clamp(0.0, 255.0) as u8;
+            let new_blue = (original_pixel[2] as f32 * (1.0 - strenght) + sum_blue * strenght).clamp(0.0, 255.0) as u8;
+
+            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+        }
+    }
+    output
+}
