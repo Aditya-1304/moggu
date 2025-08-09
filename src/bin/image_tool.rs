@@ -175,6 +175,11 @@ fn main() -> Result<()> {
             let inverted_image = invert_colors(&img);
             inverted_image.save(output_path)?;
         }
+        "sepia" => {
+            println!("Applying sepia filter to the image...");
+            let filtered_image = apply_sepia(&img);
+            filtered_image.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -542,3 +547,27 @@ fn invert_colors(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     output
 }
 
+fn apply_sepia(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            let Rgba([r,g,b,_]) = img.get_pixel(x, y);
+            let red_filter = r as f32;
+            let green_filter = g as f32;
+            let blue_filter = b as f32;
+
+            let new_red = (red_filter * 0.393) + (green_filter * 0.769) + (blue_filter * 0.189);
+            let new_green = (red_filter * 0.349) + (green_filter * 0.686) + (blue_filter * 0.168);
+            let new_blue = (red_filter * 0.272) + (green_filter * 0.534) + (blue_filter * 0.131);
+
+            output.put_pixel(x, y, Rgb([
+                new_red.min(255.0) as u8,
+                new_green.min(255.0) as u8,
+                new_blue.min(255.0) as u8,
+            ]));
+        }
+    }
+    output
+}
