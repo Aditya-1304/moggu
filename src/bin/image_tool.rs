@@ -554,6 +554,7 @@ fn apply_sepia(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     for y in 0..height {
         for x in 0..width {
             let Rgba([r,g,b,_]) = img.get_pixel(x, y);
+        
             let red_filter = r as f32;
             let green_filter = g as f32;
             let blue_filter = b as f32;
