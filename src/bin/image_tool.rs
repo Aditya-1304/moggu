@@ -180,6 +180,16 @@ fn main() -> Result<()> {
             let filtered_image = apply_sepia(&img);
             filtered_image.save(output_path)?;
         }
+        "vignette" => {
+            if args.len() != 5 {
+                eprintln!("Error: Vignette mode requires a strength value.");
+                return Ok(());
+            }
+            let strength: f32 = args[4].parse()?;
+            println!("Applying vignette with strength: {}", strength);
+            let vignetted_img = apply_vignette(&img, strength);
+            vignetted_img.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -568,6 +578,39 @@ fn apply_sepia(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
                 new_green.min(255.0) as u8,
                 new_blue.min(255.0) as u8,
             ]));
+        }
+    }
+    output
+}
+
+
+fn apply_vignette(img: &DynamicImage, strenght: f32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
+
+
+    let center_x = width as f32 / 2.0;
+    let center_y = height as f32 / 2.0;
+
+    let max_dist = (center_x.powi(2) + center_y.powi(2)).sqrt();
+
+    for y in 0..height {
+        for x in 0..width {
+            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+
+            let dist_x = x as f32 - center_x;
+            let dist_y = y as f32 - center_y;
+            let dist = (dist_x.powi(2) + dist_y.powi(2)).sqrt();
+
+            let normal_dist = dist / max_dist;
+
+            let factor = 1.0 - (normal_dist.powf(2.0) * strenght);
+
+            let new_red = (r as f32 * factor).clamp(0.0, 255.0) as u8;
+            let new_green = (g as f32 * factor).clamp(0.0, 255.0) as u8;
+            let new_blue = (b as f32 * factor).clamp(0.0, 255.0) as u8;
+
+            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
         }
     }
     output
