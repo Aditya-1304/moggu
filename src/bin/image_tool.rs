@@ -170,6 +170,11 @@ fn main() -> Result<()> {
             let adjusted_img = adjust_contrast(&img, factor);
             adjusted_img.save(output_path)?;
         }
+        "invert" => {
+            println!("Inverting the image colors...");
+            let inverted_image = invert_colors(&img);
+            inverted_image.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -228,14 +233,12 @@ fn to_ascii_dithered(img: &image::DynamicImage, config: &AsciiConfig) -> Result<
             for x in 0..new_width {
                 let idx = (y * new_width + x) as usize;
                 let old_pixel = f32_buffer[idx];
-                
-                
+            
                 let new_pixel = ((old_pixel / 255.0 * (ramp_len - 1.0)).round() / (ramp_len - 1.0)) * 255.0;
                 f32_buffer[idx] = new_pixel;
 
                 let quant_error = old_pixel - new_pixel;
-
-                
+    
                 if x + 1 < new_width {
                     f32_buffer[idx + 1] += quant_error * 7.0 / 16.0;
                 }
@@ -521,8 +524,21 @@ fn adjust_saturation(img: &DynamicImage, factor: f32) -> ImageBuffer<Rgb<u8>, Ve
             let (new_red, new_green, new_blue) = hsl_to_rgb(h, new_s, l);
 
             output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
-            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
         }
     }
     output
 }
+
+fn invert_colors(img: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+    
+    for y in 0..height {
+        for x in 0..width {
+            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+            output.put_pixel(x, y, Rgb([255 - r, 255 - g, 255 - b]));
+        }
+    }
+    output
+}
+
