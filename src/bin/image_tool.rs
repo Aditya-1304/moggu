@@ -200,6 +200,18 @@ fn main() -> Result<()> {
             let noised_img = add_noise(&img, strenght);
             noised_img.save(output_path)?;
         }
+        "oil" => {
+            if args.len() != 6 {
+                eprintln!("Error: Oil mode requires a radius and intensity levels.");
+                return Ok(());
+            }
+            let radius: u32 = args[4].parse()?;
+            let intensity: u8 = args[5].parse()?;
+            println!("Applying oil painting filter with radius {} and intensity {}", radius, intensity);
+
+            let oil_image = apply_oil_filter(&img, radius, intensity);
+            oil_image.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -211,17 +223,26 @@ fn main() -> Result<()> {
 }
 
 fn print_usage(program_name: &str) {
-    eprintln!("Usage: {} <mode> <input> <output> [options]", program_name);
+    eprintln!("Usage: {} <mode> <input> <output> [options/value]", program_name);
     eprintln!("\nModes:");
-    eprintln!("  grayscale <in> <out>              - Convert to a grayscale image file.");
-    eprintln!("  gaussian-blur <in> <out> <sigma>  - Apply a high-quality Gaussian blur (e.g., sigma 5.0). Alias: 'blur'.");
-    eprintln!("  box-blur <in> <out> <radius>      - Apply a simple, from-scratch box blur (e.g., radius 3).");
-    eprintln!("  rotate90 <in> <out>               - Rotate image 90 degrees clockwise.");
-    eprintln!("  rotate180 <in> <out>              - Rotate image 180 degrees.");
-    eprintln!("  rotate270 <in> <out>              - Rotate image 270 degrees clockwise.");
-    eprintln!("  flip-horizontal <in> <out>        - Flip image horizontally.");
-    eprintln!("  flip-vertical <in> <out>          - Flip image vertically.");
-    eprintln!("  ascii <in> <out> [options]    - Convert to a high-quality ASCII art text file.");
+    eprintln!("  grayscale <in> <out>                  - Convert to a grayscale image file.");
+    eprintln!("  brightness <in> <out> <value>         - Adjust brightness (e.g., 20 or -20).");
+    eprintln!("  contrast <in> <out> <factor>          - Adjust contrast (e.g., 1.5).");
+    eprintln!("  saturate <in> <out> <factor>          - Adjust color saturation (e.g., 1.5 or -1.0).");
+    eprintln!("  invert <in> <out>                     - Invert the image colors.");
+    eprintln!("  sepia <in> <out>                      - Apply a sepia (antique) filter.");
+    eprintln!("  vignette <in> <out> <strength>        - Apply a vignette effect (e.g., strength 0.8).");
+    eprintln!("  noise <in> <out> <strength>           - Add random noise/grain to the image (e.g., strength 20).");
+    eprintln!("  oil <in> <out> <radius> <intensity>   - Apply an oil painting effect (e.g., radius 4, intensity 20).");
+    eprintln!("  gaussian-blur <in> <out> <sigma>      - Apply a high-quality Gaussian blur (e.g., sigma 5.0). Alias: 'blur'.");
+    eprintln!("  box-blur <in> <out> <radius>          - Apply a simple, from-scratch box blur (e.g., radius 3).");
+    eprintln!("  sharpen <in> <out> <strength>         - Sharpen the image (e.g., strength 1.0).");
+    eprintln!("  rotate90 <in> <out>                   - Rotate image 90 degrees clockwise.");
+    eprintln!("  rotate180 <in> <out>                  - Rotate image 180 degrees.");
+    eprintln!("  rotate270 <in> <out>                  - Rotate image 270 degrees clockwise.");
+    eprintln!("  flip-horizontal <in> <out>            - Flip image horizontally.");
+    eprintln!("  flip-vertical <in> <out>              - Flip image vertically.");
+    eprintln!("  ascii <in> <out> [options]            - Convert to a high-quality ASCII art text file.");
     eprintln!("\nOptions:");
     eprintln!("  --width=N                     - Set maximum width in characters (default: 120).");
     eprintln!("  --contrast=F                  - Adjust contrast. >1.0 increases, <1.0 decreases (default: 1.2).");
@@ -643,6 +664,66 @@ fn add_noise(img: &DynamicImage, strenght: u8) -> ImageBuffer<Rgb<u8>, Vec<u8>> 
             let new_blue = (b as i16 + noise).clamp(0, 255) as u8;
 
             output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+        }
+    }
+    output
+}
+
+fn apply_oil_filter(img: &DynamicImage, radius: u32, intensity_levels: u8) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut intensity_counts = vec![0; intensity_levels as usize];
+
+            let mut avg_red = vec![0; intensity_levels as usize];
+
+            let mut avg_green = vec![0; intensity_levels as usize];
+
+            let mut avg_blue = vec![0; intensity_levels as usize];
+
+            let y_min = y.saturating_sub(radius);
+            let y_max = (y + radius).min(height - 1);
+            let x_min = x.saturating_sub(radius);
+            let x_max = (x + radius).min(width - 1);
+
+            for newy in y_min..=y_max {
+                for newx in x_min..=x_max {
+                    let Rgba([r,g,b, _]) = img.get_pixel(newx, newy);
+                    let intensity = (((r as u32 + g as u32 + b as u32) /3 * intensity_levels as u32) / 256) as usize;
+
+                    if intensity < intensity_levels as usize {
+                        intensity_counts[intensity] +=1;
+                        avg_red[intensity] += r as u32;
+                        avg_green[intensity] += g as u32;
+                        avg_blue[intensity] += b as u32;
+                    }
+                    
+                }
+            }
+
+            let mut max_count = 0;
+            let mut max_index = 0;
+            for i in 0..intensity_levels as usize {
+                if intensity_counts[i] > max_count {
+                    max_count = intensity_counts[i];
+                    max_index = i;
+                }
+                
+            }
+
+            if max_count > 0 {
+                let final_red = (avg_red[max_index] / max_count) as u8;
+                let final_green = (avg_green[max_index] / max_count) as u8;
+                let final_blue = (avg_blue[max_index] / max_count) as u8;
+
+                output.put_pixel(x, y, Rgb([final_red, final_green, final_blue]));
+            } else {
+                let Rgba([r, g, b, _]) = img.get_pixel(x,y);
+                output.put_pixel(x, y, Rgb([r,g,b]));
+            }
+            
         }
     }
     output
