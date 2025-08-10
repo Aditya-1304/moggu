@@ -217,6 +217,21 @@ fn main() -> Result<()> {
             let edge_image = sobel_edge_detection(&img);
             edge_image.save(output_path)?;
         }
+        "crop" => {
+            if args.len() != 8 {
+                eprintln!("Error: crop mode requires 4 values: x, y, width and height.");
+                eprintln!("Usage: {} crop <in> <out> <x> <y> <width> <height>", args[0]);
+                return Ok(());
+            }
+            let x: u32 = args[4].parse()?;
+            let y: u32 = args[5].parse()?;
+            let height: u32 = args[6].parse()?;
+            let width: u32 = args[7].parse()?;
+
+            println!("Cropping image to {}x{} at ({}, {})", width, height, x, y);
+            let crop_image = img.crop_imm(x, y, width, height);
+            crop_image.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -768,4 +783,20 @@ fn sobel_edge_detection(img: &DynamicImage) -> GrayImage{
     }
     output
 
+}
+
+
+fn crop(img: &DynamicImage, x:u32, y: u32, width: u32, height: u32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
+
+    for new_y in 0..height {
+        for new_x in 0..width {
+            let original_x = x + new_x;
+            let original_y = y + new_y;
+
+            let Rgba([r, g, b, _]) = img.get_pixel(original_x, original_y);
+            output.put_pixel(new_x, new_y, Rgb([r,g,b]));
+        }
+    }
+    output
 }
