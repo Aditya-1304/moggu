@@ -257,6 +257,16 @@ fn main() -> Result<()> {
             let new_img = rotate_hue(&img, degrees);
             new_img.save(output_path)?;
         }
+        "thresholding" => {
+            if args.len() != 5 {
+                eprintln!("Error: Thresholding requires you to give threshold.");
+                return  Ok(());
+            }
+            let threshold: u8 = args[4].parse()?;
+            
+            let threshed_image = apply_thresholding(&img, threshold);
+            threshed_image.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -847,6 +857,21 @@ fn rotate_hue(img: &DynamicImage, degrees: f32) -> ImageBuffer<Rgb<u8>, Vec<u8>>
             let (new_red, new_green, new_blue) = hsl_to_rgb(new_height, s, l);
 
             output.put_pixel(x, y, Rgb([new_red, new_green,new_blue]));
+        }
+    }
+    output
+}
+
+fn apply_thresholding(img: &DynamicImage, threshold: u8) -> GrayImage {
+    let gray = img.to_luma8();
+    let mut output = GrayImage::new(gray.width(), gray.height());
+
+    for (x, y, pixel) in gray.enumerate_pixels() {
+        let intensity = pixel[0];
+        if intensity > threshold {
+            output.put_pixel(x, y, image::Luma([255])); //white
+        } else {
+            output.put_pixel(x, y, image::Luma([0])); //black
         }
     }
     output
