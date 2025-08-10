@@ -247,6 +247,16 @@ fn main() -> Result<()> {
             let crop_image = crop(&img,x, y, width, height);
             crop_image.save(output_path)?;
         }
+        "hue-rotate" => {
+            if args.len() != 5{
+                eprintln!("Error: hue mode requires degrees value.");
+                return Ok(());
+            }
+            let degrees: f32 = args[4].parse()?;
+            
+            let new_img = rotate_hue(&img, degrees);
+            new_img.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -819,6 +829,24 @@ fn crop(img: &DynamicImage, x:u32, y: u32, width: u32, height: u32) -> ImageBuff
                 let Rgba([r, g, b, _]) = img.get_pixel(original_x, original_y);
                 output.put_pixel(new_x, new_y, Rgb([r,g,b]));
             }
+        }
+    }
+    output
+}
+
+fn rotate_hue(img: &DynamicImage, degrees: f32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            let Rgba([r,g,b,_]) = img.get_pixel(x, y);
+            let (h, s, l) = rgb_to_hsl(r, g, b);
+
+            let new_height = (h + degrees) % 360.0;
+            let (new_red, new_green, new_blue) = hsl_to_rgb(new_height, s, l);
+
+            output.put_pixel(x, y, Rgb([new_red, new_green,new_blue]));
         }
     }
     output
