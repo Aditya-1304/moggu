@@ -212,6 +212,11 @@ fn main() -> Result<()> {
             let oil_image = apply_oil_filter(&img, radius, intensity);
             oil_image.save(output_path)?;
         }
+        "edge-detection" => {
+            println!("Applying sobel edge detection on the image..,");
+            let edge_image = sobel_edge_detection(&img);
+            edge_image.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -727,4 +732,40 @@ fn apply_oil_filter(img: &DynamicImage, radius: u32, intensity_levels: u8) -> Im
         }
     }
     output
+}
+
+fn sobel_edge_detection(img: &DynamicImage) -> GrayImage{
+    let gray  = img.to_luma8();
+    let (width, height) = img.dimensions();
+    let mut output = GrayImage::new(width, height);
+
+    let kernel_x : [[i32; 3]; 3] = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
+    let kernel_y : [[i32; 3]; 3] = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
+
+    for y in 1..height - 1{
+        for x in 1..width - 1 {
+
+            let mut gradientx = 0; 
+            let mut gradienty = 0;
+
+            for ky in 0..3 {
+                for kx in 0..3 {
+                    let pixelx = x + kx - 1;
+                    let pixely = y + ky - 1;
+
+                    let pixel_intensity = gray.get_pixel(pixelx, pixely)[0] as i32;
+
+                    gradientx += pixel_intensity * kernel_x[ky as usize] [kx as usize];
+                    gradienty += pixel_intensity * kernel_y[ky as usize] [kx as usize];
+                 } 
+            }
+            let magnitude = ((gradientx.pow(2) + gradienty.pow(2)) as f32).sqrt();
+
+            let edge_pixel = magnitude.clamp(0.0, 255.0) as u8;
+
+            output.put_pixel(x, y, image::Luma([edge_pixel]));
+        }
+    }
+    output
+
 }
