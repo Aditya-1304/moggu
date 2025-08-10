@@ -232,6 +232,21 @@ fn main() -> Result<()> {
             let crop_image = img.crop_imm(x, y, width, height);
             crop_image.save(output_path)?;
         }
+        "crop-own" => {
+            if args.len() != 8 {
+                eprintln!("Error: crop mode requires 4 values: x, y, width and height.");
+                eprintln!("Usage: {} crop <in> <out> <x> <y> <width> <height>", args[0]);
+                return Ok(());
+            }
+            let x: u32 = args[4].parse()?;
+            let y: u32 = args[5].parse()?;
+            let height: u32 = args[6].parse()?;
+            let width: u32 = args[7].parse()?;
+
+            println!("Cropping image to {}x{} at ({}, {})", width, height, x, y);
+            let crop_image = crop(&img,x, y, width, height);
+            crop_image.save(output_path)?;
+        }
         _ => {
             print_usage(&args[0]);
             return Err("Unknown mode specified.".into());
@@ -254,6 +269,8 @@ fn print_usage(program_name: &str) {
     eprintln!("  vignette <in> <out> <strength>        - Apply a vignette effect (e.g., strength 0.8).");
     eprintln!("  noise <in> <out> <strength>           - Add random noise/grain to the image (e.g., strength 20).");
     eprintln!("  oil <in> <out> <radius> <intensity>   - Apply an oil painting effect (e.g., radius 4, intensity 20).");
+    eprintln!("  edge-detection <in> <out>             - Apply Sobel edge detection.");
+    eprintln!("  crop <in> <out> <x> <y> <w> <h>       - Crop the image to a rectangle.");
     eprintln!("  gaussian-blur <in> <out> <sigma>      - Apply a high-quality Gaussian blur (e.g., sigma 5.0). Alias: 'blur'.");
     eprintln!("  box-blur <in> <out> <radius>          - Apply a simple, from-scratch box blur (e.g., radius 3).");
     eprintln!("  sharpen <in> <out> <strength>         - Sharpen the image (e.g., strength 1.0).");
@@ -787,15 +804,21 @@ fn sobel_edge_detection(img: &DynamicImage) -> GrayImage{
 
 
 fn crop(img: &DynamicImage, x:u32, y: u32, width: u32, height: u32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let mut output = ImageBuffer::<Rgb<u8>,_>::new(width, height);
+    let (image_width, image_height) = img.dimensions();
+
+    let actual_width = width.min(image_width.saturating_sub(x));
+    let actual_height = height.min(image_height.saturating_sub(y));
+    let mut output = ImageBuffer::<Rgb<u8>,_>::new(actual_width, actual_height);
 
     for new_y in 0..height {
         for new_x in 0..width {
             let original_x = x + new_x;
             let original_y = y + new_y;
 
-            let Rgba([r, g, b, _]) = img.get_pixel(original_x, original_y);
-            output.put_pixel(new_x, new_y, Rgb([r,g,b]));
+            if original_x < image_width && original_y < image_height {
+                let Rgba([r, g, b, _]) = img.get_pixel(original_x, original_y);
+                output.put_pixel(new_x, new_y, Rgb([r,g,b]));
+            }
         }
     }
     output
