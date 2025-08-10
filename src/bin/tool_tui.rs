@@ -105,7 +105,46 @@ pub enum InputMode {
   Parameter,
 }
 
-
+impl App {
+  pub fn new() -> App {
+    let filters = vec![
+      Filter {
+        name: "grayscale".to_string(),
+        description: "Convert image to grayscale".to_string(),
+        requires_param: false,
+        params: vec![],
+        category: FilterCategory::Basic,
+        icon: "🔲"
+      },
+      Filter {
+        name: "brigntness".to_string(),
+        description: "Adjust image brightness". to_string(),
+        requires_param: true,
+        params: vec![FilterParam {
+          name: "value".to_string(),
+          param_type: ParamType::Integer { min: -100, max: 100 },
+          default: "20".to_string(),
+          description: "Brightness adjustment (-100 to 100)".to_string()
+        }],
+        category: FilterCategory::Enchancement,
+        icon: "☀️"
+      },
+      Filter {
+        name : "contrast".to_string(),
+        description: "Adjust image contrast".to_string(),
+        requires_param: true,
+        params: vec![FilterParam {
+          name: "factor".to_string(),
+          param_type: ParamType::Float { min: 0.1, max: 3.0 },
+          default: "1.5".to_string(),
+          description: "Contrast factor (0.1 to 3.0)".to_string(),
+        }],
+        category: FilterCategory::Enchancement,
+        icon: "🌗",
+      },
+    ];
+  }
+}
 fn main() {
   println!("hello world")
 }
