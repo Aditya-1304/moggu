@@ -3,3 +3,4 @@ gradient*
 *.txt
 *.jpeg
 *.png
+/src/bin/image_tui.rs
