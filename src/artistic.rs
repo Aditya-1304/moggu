@@ -75,7 +75,7 @@ pub fn vignette(img: &DynamicImage, strength: f32, progress_tx: Option<ProgressS
 pub fn noise(img: &DynamicImage, strength: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
     let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     
     send_progress(&progress_tx, 0.0);
 
@@ -83,9 +83,9 @@ pub fn noise(img: &DynamicImage, strength: u8, progress_tx: Option<ProgressSende
         for x in 0..width {
             let Rgba([r, g, b, _]) = img.get_pixel(x, y);
             
-            let noise_r = rng.gen_range(-(strength as i32)..=strength as i32);
-            let noise_g = rng.gen_range(-(strength as i32)..=strength as i32);
-            let noise_b = rng.gen_range(-(strength as i32)..=strength as i32);
+            let noise_r = rng.random_range(-(strength as i32)..=strength as i32);
+            let noise_g = rng.random_range(-(strength as i32)..=strength as i32);
+            let noise_b = rng.random_range(-(strength as i32)..=strength as i32);
             
             let new_red = (r as i32 + noise_r).clamp(0, 255) as u8;
             let new_green = (g as i32 + noise_g).clamp(0, 255) as u8;

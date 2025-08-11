@@ -12,6 +12,7 @@ pub mod utility;
 pub type ProgressSender = mpsc::Sender<f64>;
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+
 #[derive(Clone)]
 pub struct AsciiConfig {
     pub max_width: u32,
@@ -48,7 +49,7 @@ pub fn process_filter(
     param_values: &[String],
     progress_tx: Option<ProgressSender>,
 ) -> Result<()> {
-    use image::DynamicImage;
+    // use image::DynamicImage;
     
     let img = image::open(input_file)?;
     
