@@ -3,7 +3,21 @@ name = "moggu"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "moggu"
+path = "src/lib.rs"
+
+[[bin]]
+name = "image_tool"
+path = "src/bin/image_tool.rs"
+
+[[bin]]
+name = "image_tui"
+path = "src/bin/image_tui.rs"
+
 [dependencies]
+base = "0.1.0"
+base64 = "0.22.1"
 crossterm = "0.29.0"
 image = "0.25.6"
 rand = "0.9.2"
