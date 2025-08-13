@@ -1,68 +1,50 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 
 use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb, Rgba};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::{ProgressSender, send_progress};
+use std::sync::atomic::{AtomicUsize,Ordering};
 
 
 pub fn brightness(img: &DynamicImage, value: i32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+    let total_pixels = (width * height) as usize;
     
     send_progress(&progress_tx, 0.0);
 
-    let progress_counter = Arc::new(Mutex::new(0u32));
+    let progress_counter = Arc::new(AtomicUsize::new(0));
     let progress_tx = Arc::new(progress_tx);
 
-    let pixels: Vec<_> = (0..height)
+    let pixels: Vec<Rgb<u8>> = (0..total_pixels)
         .into_par_iter()
-        .map(|y| {
-            let mut row_pixels = Vec::with_capacity(width as usize);
+        .map(|i| {
+            let x = (i as u32) % width;
+            let y = (i as u32) / width;
+            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
 
-            for x in 0..width {
-                let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+            let new_red = (r as i32 + value).clamp(0, 255) as u8;
+            let new_green = (g as i32 + value).clamp(0, 255) as u8;
+            let new_blue = (b as i32 + value).clamp(0, 255) as u8;
 
-                let new_red = (r as i32 + value).clamp(0, 255) as u8;
-                let new_green = (g as i32 + value).clamp(0, 255) as u8;
-                let new_blue = (b as i32 + value).clamp(0, 255) as u8;
+            let current = progress_counter.fetch_add(1, Ordering::Relaxed);
 
-                row_pixels.push((x, y, Rgb([new_red, new_green, new_blue])));
+            if current % 10000 == 0 {
+                let progress = current as f64 / total_pixels as f64;
+                send_progress(&progress_tx, progress);
             }
 
-            if y % 20 == 0 {
-                if let Ok(mut counter) = progress_counter.lock() {
-                    *counter += 20;
-                    send_progress(&progress_tx, *counter as f64 / height as f64);
-                }
-            }
-            row_pixels
+            Rgb([new_red, new_green, new_blue])
         })
         .collect();
 
 
-        for row in pixels {
-            for (x, y, pixel) in row {
-                output.put_pixel(x, y, pixel);
-            }
-        }
-    // for y in 0..height {
-    //     for x in 0..width {
-    //         let Rgba([r, g, b, _]) = img.get_pixel(x, y);
-
-    //         let new_red = (r as i32 + value).clamp(0, 255) as u8;
-    //         let new_green = (g as i32 + value).clamp(0, 255) as u8;
-    //         let new_blue = (b as i32 + value).clamp(0, 255) as u8;
-
-    //         output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
-    //     }
-
-    //     if y % 20 == 0 {
-    //         send_progress(&progress_tx, y as f64 / height as f64);
-    //     }
-    // }
-
+        let raw_pixels: Vec<u8> = pixels
+            .into_iter()
+            .flat_map(|rgb| rgb.0)
+            .collect();
+    
     send_progress(&progress_tx, 1.0);
-    output
+    ImageBuffer::from_vec(width, height, raw_pixels).unwrap()
 }
 
 /// Adjust image contrast
