@@ -1,42 +1,44 @@
 use std::sync::{Arc};
 
 use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb, Rgba};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::{iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
 use std::sync::atomic::{AtomicUsize,Ordering};
 
-pub fn brightness_parallel_v2(img: &DynamicImage, value: i32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (width, height) = img.dimensions();
+pub fn brightness(
+    img: &DynamicImage,
+    value: i32,
+    progress_tx: Option<ProgressSender>,
+) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    let mut out_buffer = ImageBuffer::new(width, height);
     let total_pixels = (width * height) as usize;
 
     send_progress(&progress_tx, 0.0);
-
     let progress_counter = Arc::new(AtomicUsize::new(0));
     let progress_tx = Arc::new(progress_tx);
 
-    let pixels: Vec<u8> = (0..total_pixels)
-        .into_par_iter()
-        .flat_map(|i| {
-            let x = (i as u32) % width;
-            let y = (i as u32) / width;
-            let Rgba([r, g, b,_ ]) = img.get_pixel(x, y);
+    let in_pixels = rgb_img.as_raw();
+    let out_pixels = out_buffer.as_mut();
 
-            let new_r = (r as i32 + value).clamp(0, 255) as u8;
-            let new_g = (g as i32 + value).clamp(0, 255) as u8;
-            let new_b = (b as i32 + value).clamp(0, 255) as u8;
+    in_pixels
+        .par_chunks_exact(3)
+        .zip(out_pixels.par_chunks_exact_mut(3))
+        .for_each(|(in_pixel, out_pixel)| {
+            
+            out_pixel[0] = (in_pixel[0] as i32 + value).clamp(0, 255) as u8;
+            out_pixel[1] = (in_pixel[1] as i32 + value).clamp(0, 255) as u8;
+            out_pixel[2] = (in_pixel[2] as i32 + value).clamp(0, 255) as u8;
 
             let current = progress_counter.fetch_add(1, Ordering::Relaxed);
             if current % 50000 == 0 {
                 send_progress(&progress_tx, current as f64 / total_pixels as f64);
             }
-
-            [new_r, new_g, new_b]
-        })
-        .collect();
+        });
 
     send_progress(&progress_tx, 1.0);
-
-    ImageBuffer::from_vec(width, height, pixels).unwrap()
+    out_buffer
 }
 
 /// Adjust image contrast
