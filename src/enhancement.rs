@@ -1,5 +1,4 @@
 use std::sync::{Arc};
-
 use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb, Rgba};
 use rayon::{iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
@@ -26,7 +25,7 @@ pub fn brightness(
         .par_chunks_exact(3)
         .zip(out_pixels.par_chunks_exact_mut(3))
         .for_each(|(in_pixel, out_pixel)| {
-            
+
             out_pixel[0] = (in_pixel[0] as i32 + value).clamp(0, 255) as u8;
             out_pixel[1] = (in_pixel[1] as i32 + value).clamp(0, 255) as u8;
             out_pixel[2] = (in_pixel[2] as i32 + value).clamp(0, 255) as u8;
@@ -243,4 +242,66 @@ pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<Progr
     
     send_progress(&progress_tx, 1.0);
     output
+}
+
+
+
+fn horizontal_box_blur(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, width: u32, height: u32) -> Vec<u8> {
+    let mut result = vec![0u8; (width * height * 3) as usize];
+    let pixels = img.as_raw();
+
+    result.par_chunks_exact_mut((width * 3) as usize).enumerate().for_each(|(y, row)| {
+        let row_start = (y as u32 * width * 3) as usize;
+
+        let mut sum_red = 0u32;
+        let mut sum_green = 0u32;
+        let mut sum_blue = 0u32;
+        let mut window_size = 0u32;
+
+        let x_min = 0u32.saturating_sub(radius);
+        let x_max = (0 + radius).min(width - 1);
+
+        for kx in x_min..=x_max {
+            let idx = row_start + (kx * 3) as usize;
+            sum_red += pixels[idx] as u32;
+            sum_green += pixels[idx + 1] as u32;
+            sum_blue += pixels[idx + 2] as u32;
+            window_size += 1;
+        }
+
+        let out_idx = 0;
+        row[out_idx] = (sum_red / window_size) as u8;
+        row[out_idx + 1] = (sum_green / window_size) as u8;
+        row[out_idx + 2] = (sum_blue / window_size) as u8;
+
+        for x in 1..width {
+            let new_x_min = x.saturating_sub(radius);
+            let new_x_max = (x + radius).min(width - 1);
+            let prev_x_min = (x - 1).saturating_sub(radius);
+            let prev_x_max = ((x - 1) + radius).min(width - 1);
+
+            if new_x_min > prev_x_min {
+                let remove_idx = row_start + (prev_x_min * 3) as usize;
+                sum_red -= pixels[remove_idx] as u32;
+                sum_green -= pixels[remove_idx + 1] as u32;
+                sum_blue -= pixels[remove_idx + 2] as u32;
+                window_size -= 1;
+            }
+
+            if new_x_max > prev_x_max {
+                let add_idx = row_start + (new_x_max * 3) as usize;
+                sum_red += pixels[add_idx] as u32;
+                sum_green += pixels[add_idx + 1] as u32;
+                sum_blue += pixels[add_idx + 2] as u32;
+                window_size += 1;
+            }
+
+            let out_idx = (x * 3) as usize;
+            row[out_idx] = (sum_red / window_size) as u8;
+            row[out_idx + 1] = (sum_green / window_size) as u8;
+            row[out_idx + 2] = (sum_blue / window_size) as u8;
+        }
+    });
+
+    result   
 }
