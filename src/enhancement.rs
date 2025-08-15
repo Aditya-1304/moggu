@@ -69,49 +69,142 @@ pub fn contrast(img: &DynamicImage, factor: f32, progress_tx: Option<ProgressSen
 
 /// Apply box blur
 pub fn box_blur(img: &DynamicImage, radius: u32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::new(width, height);
     
+    let rgb_img = img.to_rgb8();
+
+    let (width, height) = rgb_img.dimensions();
+
     send_progress(&progress_tx, 0.0);
 
-    for y in 0..height {
-        for x in 0..width {
-            let mut total_red: u32 = 0;
-            let mut total_green: u32 = 0;
-            let mut total_blue: u32 = 0;
-            let mut pixel_count: u32 = 0;
+    let horizontal_blurred = horizontal_box_blur(&rgb_img, radius, width, height);
 
-            let y_min = y.saturating_sub(radius);
-            let y_max = (y + radius).min(height - 1);
-            let x_min = x.saturating_sub(radius);
-            let x_max = (x + radius).min(width - 1);
+    send_progress(&progress_tx, 0.5);
 
-            for ny in y_min..=y_max {
-                for nx in x_min..=x_max {
-                    let pixel = img.get_pixel(nx, ny);
-                    let Rgba([r, g, b, _]) = pixel;
+    let final_result = vertical_box_blur(&horizontal_blurred, radius, width, height);
 
-                    total_red += r as u32;
-                    total_green += g as u32;
-                    total_blue += b as u32;
-                    pixel_count += 1;
-                }
-            }
+    send_progress(&progress_tx, 1.0);
 
-            let avg_red = (total_red / pixel_count) as u8;
-            let avg_green = (total_green / pixel_count) as u8;
-            let avg_blue = (total_blue / pixel_count) as u8;
+    ImageBuffer::from_vec(width, height, final_result).unwrap()
+}
 
-            output.put_pixel(x, y, Rgb([avg_red, avg_green, avg_blue]));
+
+fn horizontal_box_blur(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, width: u32, height: u32) -> Vec<u8> {
+    let mut result = vec![0u8; (width * height * 3) as usize];
+    let pixels = img.as_raw();
+
+    result.par_chunks_exact_mut((width * 3) as usize).enumerate().for_each(|(y, row)| {
+        let row_start = (y as u32 * width * 3) as usize;
+
+        let mut sum_red = 0u32;
+        let mut sum_green = 0u32;
+        let mut sum_blue = 0u32;
+        let mut window_size = 0u32;
+
+        let x_min = 0u32.saturating_sub(radius);
+        let x_max = (0 + radius).min(width - 1);
+
+        for kx in x_min..=x_max {
+            let idx = row_start + (kx * 3) as usize;
+            sum_red += pixels[idx] as u32;
+            sum_green += pixels[idx + 1] as u32;
+            sum_blue += pixels[idx + 2] as u32;
+            window_size += 1;
         }
 
-        if y % 10 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
+        let out_idx = 0;
+        row[out_idx] = (sum_red / window_size) as u8;
+        row[out_idx + 1] = (sum_green / window_size) as u8;
+        row[out_idx + 2] = (sum_blue / window_size) as u8;
+
+        for x in 1..width {
+            let new_x_min = x.saturating_sub(radius);
+            let new_x_max = (x + radius).min(width - 1);
+            let prev_x_min = (x - 1).saturating_sub(radius);
+            let prev_x_max = ((x - 1) + radius).min(width - 1);
+
+            if new_x_min > prev_x_min {
+                let remove_idx = row_start + (prev_x_min * 3) as usize;
+                sum_red -= pixels[remove_idx] as u32;
+                sum_green -= pixels[remove_idx + 1] as u32;
+                sum_blue -= pixels[remove_idx + 2] as u32;
+                window_size -= 1;
+            }
+
+            if new_x_max > prev_x_max {
+                let add_idx = row_start + (new_x_max * 3) as usize;
+                sum_red += pixels[add_idx] as u32;
+                sum_green += pixels[add_idx + 1] as u32;
+                sum_blue += pixels[add_idx + 2] as u32;
+                window_size += 1;
+            }
+
+            let out_idx = (x * 3) as usize;
+            row[out_idx] = (sum_red / window_size) as u8;
+            row[out_idx + 1] = (sum_green / window_size) as u8;
+            row[out_idx + 2] = (sum_blue / window_size) as u8;
+        }
+    });
+
+    result   
+}
+
+fn vertical_box_blur(pixels: &[u8], radius: u32, width: u32, height: u32) -> Vec<u8> {
+    let mut result = vec![0u8; (width * height * 3) as usize];
+
+    for x in 0..width {
+        let mut sum_red = 0u32;
+        let mut sum_green = 0u32;
+        let mut sum_blue = 0u32;
+        let mut window_size = 0u32;
+
+        let y_min = 0u32.saturating_sub(radius);
+        let y_max = (0 + radius).min(height - 1);
+
+        for ky in y_min..=y_max {
+            let idx = ((ky * width + x) * 3) as usize;
+            sum_red += pixels[idx] as u32;
+            sum_green += pixels[idx + 1] as u32;
+            sum_blue += pixels[idx + 2] as u32;
+            window_size += 1;
+        }
+
+        let out_idx = (x * 3) as usize;
+        result[out_idx] = (sum_red / window_size) as u8;
+        result[out_idx + 1] = (sum_green / window_size) as u8;
+        result[out_idx + 2] = (sum_blue / window_size) as u8;
+
+        for y in 1..height {
+            let new_y_min = y.saturating_sub(radius);
+            let new_y_max = (y + radius).min(height - 1);
+            let prev_y_min = (y - 1).saturating_sub(radius);
+            let prev_y_max = ((y - 1) + radius).min(height - 1);
+
+            if new_y_min > prev_y_min {
+                let remove_idx = ((prev_y_min * width + x) * 3) as usize;
+                sum_red -= pixels[remove_idx] as u32;
+                sum_green -= pixels[remove_idx + 1] as u32;
+                sum_blue -= pixels[remove_idx + 2] as u32;
+                window_size -= 1;
+            }
+
+            if new_y_max > prev_y_max {
+                let add_idx = ((new_y_max * width + x) * 3) as usize;
+                sum_red += pixels[add_idx] as u32;
+                sum_green += pixels[add_idx + 1] as u32;
+                sum_blue += pixels[add_idx + 2] as u32;
+                window_size += 1;
+            }
+
+            let out_idx = ((y * width + x) * 3) as usize;
+            result[out_idx] = (sum_red / window_size) as u8;
+            result[out_idx + 1] = (sum_green / window_size) as u8;
+            result[out_idx + 2] = (sum_blue / window_size) as u8;
         }
     }
 
-    send_progress(&progress_tx, 1.0);
-    output
+    result
+
+
 }
 
 /// Apply Gaussian blur (simplified implementation)
@@ -245,63 +338,3 @@ pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<Progr
 }
 
 
-
-fn horizontal_box_blur(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, width: u32, height: u32) -> Vec<u8> {
-    let mut result = vec![0u8; (width * height * 3) as usize];
-    let pixels = img.as_raw();
-
-    result.par_chunks_exact_mut((width * 3) as usize).enumerate().for_each(|(y, row)| {
-        let row_start = (y as u32 * width * 3) as usize;
-
-        let mut sum_red = 0u32;
-        let mut sum_green = 0u32;
-        let mut sum_blue = 0u32;
-        let mut window_size = 0u32;
-
-        let x_min = 0u32.saturating_sub(radius);
-        let x_max = (0 + radius).min(width - 1);
-
-        for kx in x_min..=x_max {
-            let idx = row_start + (kx * 3) as usize;
-            sum_red += pixels[idx] as u32;
-            sum_green += pixels[idx + 1] as u32;
-            sum_blue += pixels[idx + 2] as u32;
-            window_size += 1;
-        }
-
-        let out_idx = 0;
-        row[out_idx] = (sum_red / window_size) as u8;
-        row[out_idx + 1] = (sum_green / window_size) as u8;
-        row[out_idx + 2] = (sum_blue / window_size) as u8;
-
-        for x in 1..width {
-            let new_x_min = x.saturating_sub(radius);
-            let new_x_max = (x + radius).min(width - 1);
-            let prev_x_min = (x - 1).saturating_sub(radius);
-            let prev_x_max = ((x - 1) + radius).min(width - 1);
-
-            if new_x_min > prev_x_min {
-                let remove_idx = row_start + (prev_x_min * 3) as usize;
-                sum_red -= pixels[remove_idx] as u32;
-                sum_green -= pixels[remove_idx + 1] as u32;
-                sum_blue -= pixels[remove_idx + 2] as u32;
-                window_size -= 1;
-            }
-
-            if new_x_max > prev_x_max {
-                let add_idx = row_start + (new_x_max * 3) as usize;
-                sum_red += pixels[add_idx] as u32;
-                sum_green += pixels[add_idx + 1] as u32;
-                sum_blue += pixels[add_idx + 2] as u32;
-                window_size += 1;
-            }
-
-            let out_idx = (x * 3) as usize;
-            row[out_idx] = (sum_red / window_size) as u8;
-            row[out_idx + 1] = (sum_green / window_size) as u8;
-            row[out_idx + 2] = (sum_blue / window_size) as u8;
-        }
-    });
-
-    result   
-}
