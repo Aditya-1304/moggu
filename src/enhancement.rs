@@ -1,4 +1,4 @@
-use std::sync::{Arc};
+use std::sync::{atomic::AtomicI64, Arc};
 use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb, Rgba};
 use rayon::{iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
@@ -42,29 +42,60 @@ pub fn brightness(
 
 /// Adjust image contrast
 pub fn contrast(img: &DynamicImage, factor: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    let mut out_buffer = ImageBuffer::new(width, height);
+    let total_pixels = (width * height) as usize;
     
     send_progress(&progress_tx, 0.0);
+    let progress_counter = Arc::new(AtomicUsize::new(0));
+    let progress_tx = Arc::new(progress_tx);
+    let last_update = Arc::new(AtomicI64::new(0));
 
-    for y in 0..height {
-        for x in 0..width {
-            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+    let in_pixels = rgb_img.as_raw();
+    let out_pixels = out_buffer.as_mut();
 
-            let new_red = (factor * (r as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
-            let new_green = (factor * (g as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
-            let new_blue = (factor * (b as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
+    in_pixels
+        .par_chunks_exact(3)
+        .zip(out_pixels.par_chunks_exact_mut(3))
+        .for_each(|(in_pixel, out_pixel)| {
+            out_pixel[0] = (factor * (in_pixel[0] as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
+            out_pixel[1] = (factor * (in_pixel[1] as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
+            out_pixel[2] = (factor * (in_pixel[2] as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
 
-            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
-        }
+            let current = progress_counter.fetch_add(1, Ordering::Relaxed);
 
-        if y % 15 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
-    }
+           let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64;
+
+            let last = last_update.load(Ordering::Relaxed);
+            if now - last as u64 > 16 {
+                if last_update.compare_exchange(last, now as i64, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+                    send_progress(&progress_tx, current as f64 / total_pixels as f64);
+                }
+            }
+
+        });
+    // for y in 0..height {
+    //     for x in 0..width {
+    //         let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+
+    //         let new_red = (factor * (r as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
+    //         let new_green = (factor * (g as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
+    //         let new_blue = (factor * (b as f32 - 128.0) + 128.0).clamp(0.0, 255.0) as u8;
+
+    //         output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+    //     }
+
+    //     if y % 15 == 0 {
+    //         send_progress(&progress_tx, y as f64 / height as f64);
+    //     }
+    // }
 
     send_progress(&progress_tx, 1.0);
-    output
+    out_buffer
 }
 
 /// Apply box blur
