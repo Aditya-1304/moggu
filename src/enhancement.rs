@@ -375,7 +375,59 @@ pub fn sharpen(img: &DynamicImage, strenght: f32, progress_tx: Option<ProgressSe
 //     output
 // }
 
+pub fn edge_detection(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
 
+    let mut out_buffer = ImageBuffer::new(width, height);
+
+    let in_pixels = rgb_img.as_raw();
+
+    out_buffer.as_mut().par_chunks_exact_mut((width * 3) as usize)
+        .enumerate()
+        .skip(1)
+        .take(height as usize - 2)
+        .for_each(|(y, out_row)| {
+            let row_stride = (width * 3) as usize;
+            let y = y + 1; // Adjust for skip(1)
+
+            for x in 1..width - 1 {
+                let center_idx = ((y * width as usize + x as usize) * 3) as usize;
+
+                let get_gray = |idx: usize| {
+                    0.299 * in_pixels[idx] as f32 + 
+                    0.587 * in_pixels[idx + 1] as f32 + 
+                    0.114 * in_pixels[idx + 2] as f32
+                };
+
+                let gx = -get_gray(center_idx - row_stride - 3) + 
+                          get_gray(center_idx - row_stride + 3) -
+                          2.0 * get_gray(center_idx - 3) +
+                          2.0 * get_gray(center_idx + 3) - 
+                          get_gray(center_idx + row_stride - 3) +
+                          get_gray(center_idx + row_stride + 3);
+
+                
+                let gy = -get_gray(center_idx - row_stride - 3) -    
+                         2.0 * get_gray(center_idx - row_stride) -   
+                          get_gray(center_idx - row_stride + 3) +    
+                          get_gray(center_idx + row_stride - 3) +    
+                         2.0 * get_gray(center_idx + row_stride) +   
+                          get_gray(center_idx + row_stride + 3);    
+
+                let magnitude = (gx * gx + gy * gy).sqrt().clamp(0.0, 255.0) as u8;
+
+                let out_idx = (x * 3) as usize;
+                out_row[out_idx] = magnitude;
+                out_row[out_idx + 1] = magnitude;
+                out_row[out_idx + 2] = magnitude;
+            }
+        });
+
+    send_progress(&progress_tx, 1.0);
+    out_buffer
+
+}
 
 
 pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
