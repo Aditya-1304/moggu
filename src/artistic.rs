@@ -103,7 +103,6 @@ pub fn vignette(img: &DynamicImage, strength: f32, progress_tx: Option<ProgressS
             
     //         output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
     //     }
-        
     // }
     
     send_progress(&progress_tx, 1.0);
@@ -112,42 +111,69 @@ pub fn vignette(img: &DynamicImage, strength: f32, progress_tx: Option<ProgressS
 
 /// Add noise to image
 pub fn noise(img: &DynamicImage, strength: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
-    let mut rng = rand::rng();
+
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    let mut out_buffer = ImageBuffer::new(width, height);
+    // let mut rng = rand::rng();
     
     send_progress(&progress_tx, 0.0);
 
-    for y in 0..height {
-        for x in 0..width {
-            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+    let in_pixels = rgb_img.as_raw();
+
+    out_buffer
+        .as_mut()
+        .par_chunks_exact_mut((width * 3) as usize)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            use rand::{rngs::SmallRng, Rng, SeedableRng};
+
+            let mut rng = SmallRng::seed_from_u64((y as u64).wrapping_mul(0x9e3779b97f4a7c15));
+
+            for x in 0..width {
+                let in_idx = ((y * width as usize + x as usize) * 3) as usize;
+                let out_idx = (x * 3) as usize;
+
+                let noise_red = rng.random_range(-(strength as i32)..=strength as i32);
+                let noise_green = rng.random_range(-(strength as i32)..=strength as i32);
+                let noise_blue = rng.random_range(-(strength as i32)..=strength as i32);
+
+                out_row[out_idx] = (in_pixels[in_idx] as i32 + noise_red).clamp(0, 255) as u8;
+                out_row[out_idx + 1] = (in_pixels[in_idx + 1 ] as i32 + noise_green).clamp(0, 255) as u8;
+                out_row[out_idx + 2] = (in_pixels[in_idx + 2] as i32 + noise_blue).clamp(0, 255) as u8;
+            }
+        });
+
+    // for y in 0..height {
+    //     for x in 0..width {
+    //         let Rgba([r, g, b, _]) = img.get_pixel(x, y);
             
-            let noise_r = rng.random_range(-(strength as i32)..=strength as i32);
-            let noise_g = rng.random_range(-(strength as i32)..=strength as i32);
-            let noise_b = rng.random_range(-(strength as i32)..=strength as i32);
+    //         let noise_r = rng.random_range(-(strength as i32)..=strength as i32);
+    //         let noise_g = rng.random_range(-(strength as i32)..=strength as i32);
+    //         let noise_b = rng.random_range(-(strength as i32)..=strength as i32);
             
-            let new_red = (r as i32 + noise_r).clamp(0, 255) as u8;
-            let new_green = (g as i32 + noise_g).clamp(0, 255) as u8;
-            let new_blue = (b as i32 + noise_b).clamp(0, 255) as u8;
+    //         let new_red = (r as i32 + noise_r).clamp(0, 255) as u8;
+    //         let new_green = (g as i32 + noise_g).clamp(0, 255) as u8;
+    //         let new_blue = (b as i32 + noise_b).clamp(0, 255) as u8;
             
-            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
-        }
-        
-        if y % 20 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
-    }
+    //         output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+    //     }
+    // }
     
     send_progress(&progress_tx, 1.0);
-    output
+    out_buffer
 }
 
 /// Apply oil painting effect
 pub fn oil_painting(img: &DynamicImage, radius: u32, intensity: u32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+
+    let rgb_img = img.to_rgb8();
     let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+    let mut out_buffer = ImageBuffer::<Rgb<u8>, _>::new(width, height);
     
     send_progress(&progress_tx, 0.0);
+
+    let in_pixels = rgb_img.as_raw();
 
     for y in 0..height {
         for x in 0..width {
@@ -196,7 +222,7 @@ pub fn oil_painting(img: &DynamicImage, radius: u32, intensity: u32, progress_tx
                 0
             };
 
-            output.put_pixel(x, y, Rgb([final_red, final_green, final_blue]));
+            out_buffer.put_pixel(x, y, Rgb([final_red, final_green, final_blue]));
         }
         
         if y % 5 == 0 {
@@ -205,5 +231,5 @@ pub fn oil_painting(img: &DynamicImage, radius: u32, intensity: u32, progress_tx
     }
     
     send_progress(&progress_tx, 1.0);
-    output
+    out_buffer
 }
