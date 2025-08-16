@@ -1,8 +1,7 @@
 use std::sync::{Arc};
-use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb, Rgba};
+use image::{DynamicImage, ImageBuffer, Rgb};
 use rayon::{iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
-use std::sync::atomic::{AtomicUsize,Ordering};
 
 pub fn brightness(
     img: &DynamicImage,
@@ -142,7 +141,7 @@ fn horizontal_box_blur(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, width: 
 }
 
 fn vertical_box_blur(pixels: &[u8], radius: u32, width: u32, height: u32) -> Vec<u8> {
-    let mut result = vec![0u8; (width * height * 3) as usize];
+    let result = vec![0u8; (width * height * 3) as usize];
 
     (0..width).into_par_iter().for_each(|x| {
         let mut sum_red = 0u32;

@@ -1,74 +1,113 @@
 use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb, Rgba};
+use rayon::{iter::{IndexedParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
 use rand::Rng;
 
-/// Apply sepia effect
+
 pub fn sepia(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    let mut out_buffer = ImageBuffer::new(width, height);
     
     send_progress(&progress_tx, 0.0);
 
-    for y in 0..height {
-        for x in 0..width {
-            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+    let in_pixels = rgb_img.as_raw();
+    let out_pixels = out_buffer.as_mut();
+
+    in_pixels
+        .par_chunks_exact(3)
+        .zip(out_pixels.par_chunks_exact_mut(3))
+        .for_each(|(in_pixel, out_pixel)| {
+            let red = in_pixel[0] as f32;
+            let green = in_pixel[1] as f32;
+            let blue = in_pixel[2] as f32;
+
+            let new_red = (red * 0.393) + (green * 0.769) + (blue * 0.189);
+            let new_green = (red * 0.349) + (green * 0.686) + (blue * 0.168);
+            let new_blue = (red * 0.272) + (green * 0.534) + (blue * 0.131);
+
+            out_pixel[0] = new_red.min(255.0) as u8;
+            out_pixel[1] = new_green.min(255.0) as u8;
+            out_pixel[2] = new_blue.min(255.0) as u8;
+        });
+
+    // for y in 0..height {
+    //     for x in 0..width {
+    //         let Rgba([r, g, b, _]) = img.get_pixel(x, y);
         
-            let red_filter = r as f32;
-            let green_filter = g as f32;
-            let blue_filter = b as f32;
+    //         let red_filter = r as f32;
+    //         let green_filter = g as f32;
+    //         let blue_filter = b as f32;
 
-            let new_red = (red_filter * 0.393) + (green_filter * 0.769) + (blue_filter * 0.189);
-            let new_green = (red_filter * 0.349) + (green_filter * 0.686) + (blue_filter * 0.168);
-            let new_blue = (red_filter * 0.272) + (green_filter * 0.534) + (blue_filter * 0.131);
+    //         let new_red = (red_filter * 0.393) + (green_filter * 0.769) + (blue_filter * 0.189);
+    //         let new_green = (red_filter * 0.349) + (green_filter * 0.686) + (blue_filter * 0.168);
+    //         let new_blue = (red_filter * 0.272) + (green_filter * 0.534) + (blue_filter * 0.131);
 
-            output.put_pixel(x, y, Rgb([
-                new_red.min(255.0) as u8,
-                new_green.min(255.0) as u8,
-                new_blue.min(255.0) as u8,
-            ]));
-        }
-
-        if y % 25 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
-    }
+    //         output.put_pixel(x, y, Rgb([
+    //             new_red.min(255.0) as u8,
+    //             new_green.min(255.0) as u8,
+    //             new_blue.min(255.0) as u8,
+    //         ]));
+    //     }
+    // }
 
     send_progress(&progress_tx, 1.0);
-    output
+    out_buffer
 }
 
 /// Apply vignette effect
 pub fn vignette(img: &DynamicImage, strength: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
-    
-    let center_x = width as f32 / 2.0;
-    let center_y = height as f32 / 2.0;
-    let max_distance = ((center_x * center_x) + (center_y * center_y)).sqrt();
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    let mut out_buffer = ImageBuffer::new(width, height);
     
     send_progress(&progress_tx, 0.0);
 
-    for y in 0..height {
-        for x in 0..width {
-            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+    let center_x = width as f32 / 2.0;
+    let center_y = height as f32 / 2.0;
+    let max_distance = ((center_x * center_x) + (center_y * center_y)).sqrt();
+
+    let in_pixels = rgb_img.as_raw();
+    
+    out_buffer
+        .as_mut()
+        .par_chunks_exact_mut((width * 3) as usize)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let y_f = y as f32;
+
+            for x in 0..width {
+                let x_f = x as f32;
+                let in_idx = ((y * width as usize + x as usize) * 3) as usize;
+                let out_idx = ( x * 3 ) as usize;
+
+                let distance = ((x_f - center_x).powi(2) + (y_f - center_y).powi(2)).sqrt();
+                let vignette_factor = 1.0 - (distance / max_distance * strength).clamp(0.0, 1.0);
+
+                out_row[out_idx] = (in_pixels[in_idx] as f32 * vignette_factor) as u8;
+                out_row[out_idx + 1] = (in_pixels[in_idx + 1] as f32 * vignette_factor) as u8;
+                out_row[out_idx + 2] = (in_pixels[in_idx + 2] as f32 * vignette_factor) as u8;
+            }
+        });
+
+    // for y in 0..height {
+    //     for x in 0..width {
+    //         let Rgba([r, g, b, _]) = img.get_pixel(x, y);
             
-            let distance = ((x as f32 - center_x).powi(2) + (y as f32 - center_y).powi(2)).sqrt();
-            let vignette_factor = 1.0 - (distance / max_distance * strength).clamp(0.0, 1.0);
+    //         let distance = ((x as f32 - center_x).powi(2) + (y as f32 - center_y).powi(2)).sqrt();
+    //         let vignette_factor = 1.0 - (distance / max_distance * strength).clamp(0.0, 1.0);
             
-            let new_red = (r as f32 * vignette_factor) as u8;
-            let new_green = (g as f32 * vignette_factor) as u8;
-            let new_blue = (b as f32 * vignette_factor) as u8;
+    //         let new_red = (r as f32 * vignette_factor) as u8;
+    //         let new_green = (g as f32 * vignette_factor) as u8;
+    //         let new_blue = (b as f32 * vignette_factor) as u8;
             
-            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
-        }
+    //         output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+    //     }
         
-        if y % 15 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
-    }
+    // }
     
     send_progress(&progress_tx, 1.0);
-    output
+    out_buffer
 }
 
 /// Add noise to image
