@@ -20,3 +20,6 @@ hyperfine --warmup 1 "./target/release/benchmark '$IMAGE' noise 25"
 echo "🎭 Testing oil painting effect..."
 hyperfine --warmup 1 "./target/release/benchmark '$IMAGE' oil_painting 3 8"
 
+echo " Testing grayscale effect..."
+hyperfine --warmup 1 "./target/release/benchmark '$IMAGE' grayscale"
+

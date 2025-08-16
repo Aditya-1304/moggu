@@ -1,33 +1,43 @@
 use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb, Rgba};
+use rayon::{iter::{IndexedParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
 
-/// Adjust color saturation
 pub fn saturate(img: &DynamicImage, factor: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    let mut out_buffer = ImageBuffer::new(width, height);
     
     send_progress(&progress_tx, 0.0);
 
-    for y in 0..height {
-        for x in 0..width {
-            let Rgba([r, g, b, _]) = img.get_pixel(x, y);
-            let (h, s, l) = rgb_to_hsl(r, g, b);
-            let new_s = (s * factor).clamp(0.0, 1.0);
-            let (new_red, new_green, new_blue) = hsl_to_rgb(h, new_s, l);
+    let in_pixels = rgb_img.as_raw();
+    let out_pixels = out_buffer.as_mut();
 
-            output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
-        }
-        
-        if y % 15 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
-    }
-    
+    in_pixels
+        .par_chunks_exact(3)
+        .zip(out_pixels.par_chunks_exact_mut(3))
+        .for_each(|(in_pixel, out_pixel)| {
+            let (h, s, l) = rgb_to_hsl(in_pixel[0], in_pixel[1], in_pixel[2]);
+            let new_saturation = (s * factor).clamp(0.0, 0.1);
+            let (new_red, new_green, new_blue) = hsl_to_rgb(h, new_saturation, l);
+
+            out_pixel[0] = new_red;
+            out_pixel[1] = new_green;
+            out_pixel[2] = new_blue;
+        });
+    // for y in 0..height {
+    //     for x in 0..width {
+    //         let Rgba([r, g, b, _]) = img.get_pixel(x, y);
+    //         let (h, s, l) = rgb_to_hsl(r, g, b);
+    //         let new_s = (s * factor).clamp(0.0, 1.0);
+    //         let (new_red, new_green, new_blue) = hsl_to_rgb(h, new_s, l);
+
+    //         output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
+    //     }   
+    // }
     send_progress(&progress_tx, 1.0);
-    output
+    out_buffer
 }
 
-/// Invert image colors
 pub fn invert(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
     let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
@@ -40,16 +50,12 @@ pub fn invert(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageB
             output.put_pixel(x, y, Rgb([255 - r, 255 - g, 255 - b]));
         }
         
-        if y % 20 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
     }
     
     send_progress(&progress_tx, 1.0);
     output
 }
 
-/// Rotate hue
 pub fn hue_rotate(img: &DynamicImage, degrees: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
     let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
@@ -70,16 +76,12 @@ pub fn hue_rotate(img: &DynamicImage, degrees: f32, progress_tx: Option<Progress
             output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
         }
         
-        if y % 15 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
     }
     
     send_progress(&progress_tx, 1.0);
     output
 }
 
-// Helper functions for color space conversion
 fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
     let red_normal = r as f32 / 255.0;
     let green_normal = g as f32 / 255.0;
