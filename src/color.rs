@@ -1,4 +1,4 @@
-use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb, Rgba};
+use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb};
 use rayon::{iter::{IndexedParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
 
