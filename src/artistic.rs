@@ -1,7 +1,6 @@
-use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb, Rgba};
+use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb};
 use rayon::{iter::{IndexedParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
-use rand::Rng;
 
 
 pub fn sepia(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
@@ -175,60 +174,114 @@ pub fn oil_painting(img: &DynamicImage, radius: u32, intensity: u32, progress_tx
 
     let in_pixels = rgb_img.as_raw();
 
-    for y in 0..height {
-        for x in 0..width {
-            let mut intensity_count = vec![0; intensity as usize];
-            let mut avg_red = vec![0.0; intensity as usize];
-            let mut avg_green = vec![0.0; intensity as usize];
-            let mut avg_blue = vec![0.0; intensity as usize];
+    out_buffer.as_mut()
+        .par_chunks_exact_mut((width * 3) as usize)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            for x in 0..width {
+                let mut intensity_count = vec![0; intensity as usize];
+                let mut avg_red = vec![0.0; intensity as usize];
+                let mut avg_green = vec![0.0; intensity as usize];
+                let mut avg_blue = vec![0.0; intensity as usize];
 
-            let y_min = y.saturating_sub(radius);
-            let y_max = (y + radius).min(height - 1);
-            let x_min = x.saturating_sub(radius);
-            let x_max = (x + radius).min(width - 1);
+                let y_min = (y as u32).saturating_sub(radius);
+                let y_max = ((y as u32) + radius).min(height - 1);
+                let x_min = x.saturating_sub(radius);
+                let x_max = (x + radius).min(width - 1);
 
-            for ny in y_min..=y_max {
-                for nx in x_min..=x_max {
-                    let Rgba([r, g, b, _]) = img.get_pixel(nx, ny);
-                    let intensity_index = ((r as u32 + g as u32 + b as u32) * intensity / (3 * 256)).min(intensity - 1) as usize;
+                for new_y in y_min..=y_max {
+                    for new_x in x_min..=x_max {
+                        let sample_idx = ((new_y * width + new_x) * 3) as usize;
+                        let red = in_pixels[sample_idx];
+                        let green = in_pixels[sample_idx + 1];
+                        let blue = in_pixels[sample_idx + 2];
 
-                    intensity_count[intensity_index] += 1;
-                    avg_red[intensity_index] += r as f32;
-                    avg_green[intensity_index] += g as f32;
-                    avg_blue[intensity_index] += b as f32;
+                        let intensity_index = ((red as u32 + green as u32 + blue as u32) * intensity / (3 * 256))
+                            .min(intensity - 1)as usize;
+                        
+                        intensity_count[intensity_index] += 1;
+                        avg_red[intensity_index] += red as f32;
+                        avg_green[intensity_index] += green as f32;
+                        avg_blue[intensity_index] += blue as f32;
+                    } 
+                }
+
+                let max_index = intensity_count
+                    .iter()
+                    .enumerate()
+                    .max_by_key(|(_, count)| *count)
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(0);
+
+
+                let out_idx = (x * 3) as usize;
+                if intensity_count[max_index] > 0 {
+                    let count = intensity_count[max_index] as f32;
+                    out_row[out_idx] = (avg_red[max_index] / count) as u8;
+                    out_row[out_idx + 1] = (avg_green[max_index] / count) as u8;
+                    out_row[out_idx + 2] = (avg_blue[max_index] / count) as u8;
+                } else {
+                    out_row[out_idx] = 0;
+                    out_row[out_idx + 1] = 0;
+                    out_row[out_idx + 2] = 0;
                 }
             }
+        });
 
-            let mut max_index = 0;
-            for i in 1..intensity as usize {
-                if intensity_count[i] > intensity_count[max_index] {
-                    max_index = i;
-                }
-            }
+    // for y in 0..height {
+    //     for x in 0..width {
+    //         let mut intensity_count = vec![0; intensity as usize];
+    //         let mut avg_red = vec![0.0; intensity as usize];
+    //         let mut avg_green = vec![0.0; intensity as usize];
+    //         let mut avg_blue = vec![0.0; intensity as usize];
 
-            let final_red = if intensity_count[max_index] > 0 {
-                (avg_red[max_index] / intensity_count[max_index] as f32) as u8
-            } else {
-                0
-            };
-            let final_green = if intensity_count[max_index] > 0 {
-                (avg_green[max_index] / intensity_count[max_index] as f32) as u8
-            } else {
-                0
-            };
-            let final_blue = if intensity_count[max_index] > 0 {
-                (avg_blue[max_index] / intensity_count[max_index] as f32) as u8
-            } else {
-                0
-            };
+    //         let y_min = y.saturating_sub(radius);
+    //         let y_max = (y + radius).min(height - 1);
+    //         let x_min = x.saturating_sub(radius);
+    //         let x_max = (x + radius).min(width - 1);
 
-            out_buffer.put_pixel(x, y, Rgb([final_red, final_green, final_blue]));
-        }
+    //         for ny in y_min..=y_max {
+    //             for nx in x_min..=x_max {
+    //                 let Rgba([r, g, b, _]) = img.get_pixel(nx, ny);
+    //                 let intensity_index = ((r as u32 + g as u32 + b as u32) * intensity / (3 * 256)).min(intensity - 1) as usize;
+
+    //                 intensity_count[intensity_index] += 1;
+    //                 avg_red[intensity_index] += r as f32;
+    //                 avg_green[intensity_index] += g as f32;
+    //                 avg_blue[intensity_index] += b as f32;
+    //             }
+    //         }
+
+    //         let mut max_index = 0;
+    //         for i in 1..intensity as usize {
+    //             if intensity_count[i] > intensity_count[max_index] {
+    //                 max_index = i;
+    //             }
+    //         }
+
+    //         let final_red = if intensity_count[max_index] > 0 {
+    //             (avg_red[max_index] / intensity_count[max_index] as f32) as u8
+    //         } else {
+    //             0
+    //         };
+    //         let final_green = if intensity_count[max_index] > 0 {
+    //             (avg_green[max_index] / intensity_count[max_index] as f32) as u8
+    //         } else {
+    //             0
+    //         };
+    //         let final_blue = if intensity_count[max_index] > 0 {
+    //             (avg_blue[max_index] / intensity_count[max_index] as f32) as u8
+    //         } else {
+    //             0
+    //         };
+
+    //         out_buffer.put_pixel(x, y, Rgb([final_red, final_green, final_blue]));
+    //     }
         
-        if y % 5 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
-    }
+    //     if y % 5 == 0 {
+    //         send_progress(&progress_tx, y as f64 / height as f64);
+    //     }
+    // }
     
     send_progress(&progress_tx, 1.0);
     out_buffer
