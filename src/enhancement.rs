@@ -144,7 +144,7 @@ fn horizontal_box_blur(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, width: 
 fn vertical_box_blur(pixels: &[u8], radius: u32, width: u32, height: u32) -> Vec<u8> {
     let mut result = vec![0u8; (width * height * 3) as usize];
 
-    for x in 0..width {
+    (0..width).into_par_iter().for_each(|x| {
         let mut sum_red = 0u32;
         let mut sum_green = 0u32;
         let mut sum_blue = 0u32;
@@ -160,12 +160,13 @@ fn vertical_box_blur(pixels: &[u8], radius: u32, width: u32, height: u32) -> Vec
             sum_blue += pixels[idx + 2] as u32;
             window_size += 1;
         }
-
         let out_idx = (x * 3) as usize;
-        result[out_idx] = (sum_red / window_size) as u8;
-        result[out_idx + 1] = (sum_green / window_size) as u8;
-        result[out_idx + 2] = (sum_blue / window_size) as u8;
-
+        unsafe {
+            let result_ptr = result.as_ptr() as *mut u8;
+            *result_ptr.add(out_idx) = (sum_red / window_size) as u8;
+            *result_ptr.add(out_idx + 1) = (sum_green / window_size) as u8;
+            *result_ptr.add(out_idx + 2) = (sum_blue / window_size) as u8;
+        }
         for y in 1..height {
             let new_y_min = y.saturating_sub(radius);
             let new_y_max = (y + radius).min(height - 1);
@@ -189,11 +190,14 @@ fn vertical_box_blur(pixels: &[u8], radius: u32, width: u32, height: u32) -> Vec
             }
 
             let out_idx = ((y * width + x) * 3) as usize;
-            result[out_idx] = (sum_red / window_size) as u8;
-            result[out_idx + 1] = (sum_green / window_size) as u8;
-            result[out_idx + 2] = (sum_blue / window_size) as u8;
+            unsafe {
+                let result_ptr = result.as_ptr() as *mut u8;
+            *result_ptr.add(out_idx) = (sum_red / window_size) as u8;
+            *result_ptr.add(out_idx + 1) = (sum_green / window_size) as u8;
+            *result_ptr.add(out_idx + 2) = (sum_blue / window_size) as u8;
+            }
         }
-    }
+    });
 
     result
 
@@ -205,54 +209,6 @@ pub fn gaussian_blur(img: &DynamicImage, sigma: f32, progress_tx: Option<Progres
     box_blur(img, radius, progress_tx)
 }
 
-// pub fn sharpen(img: &DynamicImage, strength: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-//     let (width, height) = img.dimensions();
-//     let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
-    
-//     send_progress(&progress_tx, 0.0);
-
-//     let kernel = [
-//         [0.0, -1.0, 0.0],
-//         [-1.0, 5.0, -1.0],
-//         [0.0, -1.0, 0.0],
-//     ];
-
-//     for y in 1..height - 1 {
-//         for x in 1..width - 1 {
-//             let mut sum_red = 0.0;
-//             let mut sum_green = 0.0;
-//             let mut sum_blue = 0.0;
-
-//             for kernel_y in 0..3 {
-//                 for kernel_x in 0..3 {
-//                     let pixel_x = x + kernel_x - 1;
-//                     let pixel_y = y + kernel_y - 1;
-
-//                     let Rgba([r, g, b, _]) = img.get_pixel(pixel_x, pixel_y);
-//                     let weight = kernel[kernel_y as usize][kernel_x as usize];
-
-//                     sum_red += r as f32 * weight;
-//                     sum_green += g as f32 * weight;
-//                     sum_blue += b as f32 * weight;
-//                 }
-//             }
-
-//             let original_pixel = img.get_pixel(x, y);
-//             let new_red = (original_pixel[0] as f32 * (1.0 - strength) + sum_red * strength).clamp(0.0, 255.0) as u8;
-//             let new_green = (original_pixel[1] as f32 * (1.0 - strength) + sum_green * strength).clamp(0.0, 255.0) as u8;
-//             let new_blue = (original_pixel[2] as f32 * (1.0 - strength) + sum_blue * strength).clamp(0.0, 255.0) as u8;
-
-//             output.put_pixel(x, y, Rgb([new_red, new_green, new_blue]));
-//         }
-        
-//         if y % 10 == 0 {
-//             send_progress(&progress_tx, y as f64 / height as f64);
-//         }
-//     }
-    
-//     send_progress(&progress_tx, 1.0);
-//     output
-// }
 pub fn sharpen(img: &DynamicImage, strenght: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     
     let rgb_img = img.to_rgb8();
@@ -327,59 +283,13 @@ pub fn sharpen(img: &DynamicImage, strenght: f32, progress_tx: Option<ProgressSe
     out_buffer
 }
 
-// pub fn edge_detection(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-//     let (width, height) = img.dimensions();
-//     let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
-//     let gray_img = img.grayscale();
-    
-//     send_progress(&progress_tx, 0.0);
-
-//     let sobel_x = [
-//         [-1, 0, 1],
-//         [-2, 0, 2],
-//         [-1, 0, 1],
-//     ];
-
-//     let sobel_y = [
-//         [-1, -2, -1],
-//         [0, 0, 0],
-//         [1, 2, 1],
-//     ];
-
-//     for y in 1..height - 1 {
-//         for x in 1..width - 1 {
-//             let mut gx = 0.0;
-//             let mut gy = 0.0;
-
-//             for i in 0..3 {
-//                 for j in 0..3 {
-//                     let pixel_x = x + j - 1;
-//                     let pixel_y = y + i - 1;
-//                     let pixel_value = gray_img.get_pixel(pixel_x, pixel_y)[0] as f32;
-
-//                     gx += pixel_value * sobel_x[i as usize][j as usize] as f32;
-//                     gy += pixel_value * sobel_y[i as usize][j as usize] as f32;
-//                 }
-//             }
-
-//             let magnitude = (gx * gx + gy * gy).sqrt().clamp(0.0, 255.0) as u8;
-//             output.put_pixel(x, y, Rgb([magnitude, magnitude, magnitude]));
-//         }
-        
-//         if y % 15 == 0 {
-//             send_progress(&progress_tx, y as f64 / height as f64);
-//         }
-//     }
-    
-//     send_progress(&progress_tx, 1.0);
-//     output
-// }
-
 pub fn edge_detection(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
     let (width, height) = rgb_img.dimensions();
 
     let mut out_buffer = ImageBuffer::new(width, height);
+
+    send_progress(&progress_tx, 0.0);
 
     let in_pixels = rgb_img.as_raw();
 
@@ -428,31 +338,6 @@ pub fn edge_detection(img: &DynamicImage, progress_tx: Option<ProgressSender>) -
     out_buffer
 
 }
-
-
-// pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-//     let (width, height) = img.dimensions();
-//     let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
-//     let gray_img = img.grayscale();
-    
-//     send_progress(&progress_tx, 0.0);
-
-//     for y in 0..height {
-//         for x in 0..width {
-//             let pixel_value = gray_img.get_pixel(x, y)[0];
-//             let binary_value = if pixel_value > threshold { 255 } else { 0 };
-//             output.put_pixel(x, y, Rgb([binary_value, binary_value, binary_value]));
-//         }
-        
-//         if y % 20 == 0 {
-//             send_progress(&progress_tx, y as f64 / height as f64);
-//         }
-//     }
-    
-//     send_progress(&progress_tx, 1.0);
-//     output
-// }
-
 
 pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
