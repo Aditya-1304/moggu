@@ -430,27 +430,56 @@ pub fn edge_detection(img: &DynamicImage, progress_tx: Option<ProgressSender>) -
 }
 
 
-pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (width, height) = img.dimensions();
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
-    let gray_img = img.grayscale();
+// pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+//     let (width, height) = img.dimensions();
+//     let mut output = ImageBuffer::<Rgb<u8>, _>::new(width, height);
+//     let gray_img = img.grayscale();
     
+//     send_progress(&progress_tx, 0.0);
+
+//     for y in 0..height {
+//         for x in 0..width {
+//             let pixel_value = gray_img.get_pixel(x, y)[0];
+//             let binary_value = if pixel_value > threshold { 255 } else { 0 };
+//             output.put_pixel(x, y, Rgb([binary_value, binary_value, binary_value]));
+//         }
+        
+//         if y % 20 == 0 {
+//             send_progress(&progress_tx, y as f64 / height as f64);
+//         }
+//     }
+    
+//     send_progress(&progress_tx, 1.0);
+//     output
+// }
+
+
+pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+
+    let mut out_buffer = ImageBuffer::new(width, height);
+
     send_progress(&progress_tx, 0.0);
 
-    for y in 0..height {
-        for x in 0..width {
-            let pixel_value = gray_img.get_pixel(x, y)[0];
-            let binary_value = if pixel_value > threshold { 255 } else { 0 };
-            output.put_pixel(x, y, Rgb([binary_value, binary_value, binary_value]));
-        }
-        
-        if y % 20 == 0 {
-            send_progress(&progress_tx, y as f64 / height as f64);
-        }
-    }
-    
+    let in_pixels = rgb_img.as_raw();
+    let out_pixels = out_buffer.as_mut();
+
+    in_pixels
+        .par_chunks_exact(3)
+        .zip(out_pixels.par_chunks_exact_mut(3))
+        .for_each(|(in_pixel, out_pixel)| {
+            let gray = (0.299 * in_pixel[0] as f32 + 
+                            0.587 * in_pixel[1] as f32 + 
+                            0.114 * in_pixel[2] as f32) as u8;
+
+            let binary_value = if gray > threshold {255} else {0};
+
+            out_pixel[0] = binary_value;
+            out_pixel[1] = binary_value;
+            out_pixel[2] = binary_value;
+        });
+
     send_progress(&progress_tx, 1.0);
-    output
+    out_buffer
 }
-
-
