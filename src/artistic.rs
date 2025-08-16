@@ -34,7 +34,8 @@ pub fn sepia(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBu
     out_buffer
 }
 
-/// Apply vignette effect
+
+
 pub fn vignette(img: &DynamicImage, strength: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
     let (width, height) = rgb_img.dimensions();
@@ -73,7 +74,8 @@ pub fn vignette(img: &DynamicImage, strength: f32, progress_tx: Option<ProgressS
     out_buffer
 }
 
-/// Add noise to image
+
+
 pub fn noise(img: &DynamicImage, strength: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
 
     let rgb_img = img.to_rgb8();
@@ -111,6 +113,8 @@ pub fn noise(img: &DynamicImage, strength: u8, progress_tx: Option<ProgressSende
     out_buffer
 }
 
+
+
 pub fn oil_painting(img: &DynamicImage, radius: u32, intensity: u32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
     let (width, height) = rgb_img.dimensions();
@@ -127,6 +131,7 @@ pub fn oil_painting(img: &DynamicImage, radius: u32, intensity: u32, progress_tx
     
     ImageBuffer::from_vec(width, height, final_result).unwrap()
 }
+
 
 
 fn horizontal_oil_pass(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, intensity: u32, width: u32, height: u32) -> Vec<u8> {
@@ -205,6 +210,8 @@ fn horizontal_oil_pass(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, intensi
     
     result
 }
+
+
 
 fn vertical_oil_pass(pixels: &[u8], radius: u32, intensity: u32, width: u32, height: u32) -> Vec<u8> {
     let result = vec![0u8; (width * height * 3) as usize];

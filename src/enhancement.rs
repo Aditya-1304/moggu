@@ -1,5 +1,5 @@
 use std::sync::{Arc};
-use image::{DynamicImage, ImageBuffer, Rgb};
+use image::{imageops::blur, DynamicImage, ImageBuffer, Rgb};
 use rayon::{iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
 
@@ -33,6 +33,7 @@ pub fn brightness(
 }
 
 
+
 pub fn contrast(img: &DynamicImage, factor: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
     let (width, height) = rgb_img.dimensions();
@@ -59,7 +60,8 @@ pub fn contrast(img: &DynamicImage, factor: f32, progress_tx: Option<ProgressSen
     out_buffer
 }
 
-/// Apply box blur
+
+
 pub fn box_blur(img: &DynamicImage, radius: u32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     
     let rgb_img = img.to_rgb8();
@@ -78,6 +80,7 @@ pub fn box_blur(img: &DynamicImage, radius: u32, progress_tx: Option<ProgressSen
 
     ImageBuffer::from_vec(width, height, final_result).unwrap()
 }
+
 
 
 fn horizontal_box_blur(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, width: u32, height: u32) -> Vec<u8> {
@@ -140,6 +143,8 @@ fn horizontal_box_blur(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, radius: u32, width: 
     result   
 }
 
+
+
 fn vertical_box_blur(pixels: &[u8], radius: u32, width: u32, height: u32) -> Vec<u8> {
     let result = vec![0u8; (width * height * 3) as usize];
 
@@ -200,13 +205,21 @@ fn vertical_box_blur(pixels: &[u8], radius: u32, width: u32, height: u32) -> Vec
 
     result
 
-
 }
+
+
 
 pub fn gaussian_blur(img: &DynamicImage, sigma: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let radius = (sigma * 2.0) as u32;
-    box_blur(img, radius, progress_tx)
+    send_progress(&progress_tx, 0.0);
+
+    let blurred = blur(img, sigma);
+    let result = DynamicImage::ImageRgba8(blurred).to_rgb8();
+    
+    send_progress(&progress_tx, 1.0);
+    result
 }
+
+
 
 pub fn sharpen(img: &DynamicImage, strenght: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     
@@ -282,10 +295,11 @@ pub fn sharpen(img: &DynamicImage, strenght: f32, progress_tx: Option<ProgressSe
     out_buffer
 }
 
+
+
 pub fn edge_detection(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
     let (width, height) = rgb_img.dimensions();
-
     let mut out_buffer = ImageBuffer::new(width, height);
 
     send_progress(&progress_tx, 0.0);
@@ -294,35 +308,43 @@ pub fn edge_detection(img: &DynamicImage, progress_tx: Option<ProgressSender>) -
 
     out_buffer.as_mut().par_chunks_exact_mut((width * 3) as usize)
         .enumerate()
-        .skip(1)
-        .take(height as usize - 2)
         .for_each(|(y, out_row)| {
             let row_stride = (width * 3) as usize;
-            let y = y + 1; // Adjust for skip(1)
 
-            for x in 1..width - 1 {
-                let center_idx = ((y * width as usize + x as usize) * 3) as usize;
+            if y == 0 || y >= height as usize - 1 {
+                out_row.fill(0);
+                return;
+            }
 
-                let get_gray = |idx: usize| {
+            for x in 0..width {
+                if x == 0 || x >= width - 1 {
+                    let out_idx = (x * 3) as usize;
+                    out_row[out_idx] = 0;
+                    out_row[out_idx + 1] = 0;
+                    out_row[out_idx + 2] = 0;
+                    continue;
+                }
+
+                let center_idx = (y * width as usize + x as usize) * 3;
+                let get_gray_fast = |idx: usize| -> f32 {
                     0.299 * in_pixels[idx] as f32 + 
                     0.587 * in_pixels[idx + 1] as f32 + 
                     0.114 * in_pixels[idx + 2] as f32
                 };
 
-                let gx = -get_gray(center_idx - row_stride - 3) + 
-                          get_gray(center_idx - row_stride + 3) -
-                          2.0 * get_gray(center_idx - 3) +
-                          2.0 * get_gray(center_idx + 3) - 
-                          get_gray(center_idx + row_stride - 3) +
-                          get_gray(center_idx + row_stride + 3);
+                let gx = -get_gray_fast(center_idx - row_stride - 3) + 
+                          get_gray_fast(center_idx - row_stride + 3) -
+                         2.0 * get_gray_fast(center_idx - 3) +
+                         2.0 * get_gray_fast(center_idx + 3) - 
+                          get_gray_fast(center_idx + row_stride - 3) +
+                          get_gray_fast(center_idx + row_stride + 3);
 
-                
-                let gy = -get_gray(center_idx - row_stride - 3) -    
-                         2.0 * get_gray(center_idx - row_stride) -   
-                          get_gray(center_idx - row_stride + 3) +    
-                          get_gray(center_idx + row_stride - 3) +    
-                         2.0 * get_gray(center_idx + row_stride) +   
-                          get_gray(center_idx + row_stride + 3);    
+                let gy = -get_gray_fast(center_idx - row_stride - 3) -    
+                         2.0 * get_gray_fast(center_idx - row_stride) -   
+                          get_gray_fast(center_idx - row_stride + 3) +    
+                          get_gray_fast(center_idx + row_stride - 3) +    
+                         2.0 * get_gray_fast(center_idx + row_stride) +   
+                          get_gray_fast(center_idx + row_stride + 3);    
 
                 let magnitude = (gx * gx + gy * gy).sqrt().clamp(0.0, 255.0) as u8;
 
@@ -335,8 +357,9 @@ pub fn edge_detection(img: &DynamicImage, progress_tx: Option<ProgressSender>) -
 
     send_progress(&progress_tx, 1.0);
     out_buffer
-
 }
+
+
 
 pub fn thresholding(img: &DynamicImage, threshold: u8, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();

@@ -1,39 +1,39 @@
-use image::{DynamicImage,GenericImageView, GrayImage};
+use image::{DynamicImage,GenericImageView, GrayImage, ImageBuffer};
+use rayon::{iter::{IndexedParallelIterator, ParallelIterator}, slice::ParallelSliceMut};
 use crate::{ProgressSender, send_progress, AsciiConfig, Result};
 
-/// Crop image to specified rectangle
 pub fn crop(img: &DynamicImage, x: u32, y: u32, width: u32, height: u32, progress_tx: Option<ProgressSender>) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
-    use image::{ImageBuffer, Rgb, Rgba};
+    let rgb_img = img.to_rgb8();
+    let (img_width, img_height) = rgb_img.dimensions();
+
+    let crop_x = x.min(img_width.saturating_sub(1));
+    let crop_y = y.min(img_height.saturating_sub(1));
+    let crop_width = width.min(img_width - crop_x);
+    let crop_height = height.min(img_height - crop_y);
+    
+    let mut out_buffer = ImageBuffer::new(crop_width, crop_height);
     
     send_progress(&progress_tx, 0.0);
-    
-    let (img_width, img_height) = img.dimensions();
-    let crop_width = width.min(img_width.saturating_sub(x));
-    let crop_height = height.min(img_height.saturating_sub(y));
-    
-    let mut output = ImageBuffer::<Rgb<u8>, _>::new(crop_width, crop_height);
-    
-    for crop_y in 0..crop_height {
-        for crop_x in 0..crop_width {
-            let source_x = x + crop_x;
-            let source_y = y + crop_y;
-            
-            if source_x < img_width && source_y < img_height {
-                let Rgba([r, g, b, _]) = img.get_pixel(source_x, source_y);
-                output.put_pixel(crop_x, crop_y, Rgb([r, g, b]));
-            }
-        }
-        
-        if crop_y % 20 == 0 {
-            send_progress(&progress_tx, crop_y as f64 / crop_height as f64);
-        }
-    }
-    
+
+    let in_pixels = rgb_img.as_raw();
+
+    out_buffer.as_mut()
+        .par_chunks_exact_mut((crop_width * 3) as usize)
+        .enumerate()
+        .for_each(|(out_y, out_row)| {
+            let src_y = crop_y + out_y as u32;
+            let src_start = ((src_y * img_width + crop_x) * 3) as usize;
+            let src_end = src_start + (crop_width * 3) as usize;
+
+            out_row.copy_from_slice(&in_pixels[src_start..src_end]);
+        });
+
     send_progress(&progress_tx, 1.0);
-    output
+    out_buffer
 }
 
-/// Convert image to ASCII art with dithering
+
+
 pub fn to_ascii_dithered(img: &DynamicImage, config: &AsciiConfig, progress_tx: Option<ProgressSender>) -> Result<String> {
     let ascii_chars_detailed = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
     let ascii_chars_simple = "@%#*+=-:. ";

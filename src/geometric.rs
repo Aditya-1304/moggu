@@ -1,4 +1,4 @@
-use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb, Rgba};
+use image::{DynamicImage, ImageBuffer, Rgb};
 use rayon::{iter::{IndexedParallelIterator, ParallelIterator}, slice::ParallelSliceMut};
 use crate::{ProgressSender, send_progress};
 
@@ -32,6 +32,8 @@ pub fn rotate90(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> Imag
     out_buffer
 }
 
+
+
 pub fn rotate180(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
     let (width, height) = rgb_img.dimensions();
@@ -60,22 +62,17 @@ pub fn rotate180(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> Ima
             }
 
         });
-    // for y in 0..height {
-    //     for x in 0..width {
-    //         let Rgba([r, g, b, _]) = img.get_pixel(x, y);
-    //         output.put_pixel(width - 1 - x, height - 1 - y, Rgb([r, g, b]));
-    //     }
-        
-    // }
-    
+
     send_progress(&progress_tx, 1.0);
     out_buffer
 }
+
+
+
 pub fn rotate270(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
     let (width, height) = rgb_img.dimensions();
-    let mut out_buffer = ImageBuffer::new(height, width); // ✅ Correct dimensions
-    
+    let mut out_buffer = ImageBuffer::new(height, width);
     send_progress(&progress_tx, 0.0);
     
     let in_pixels = rgb_img.as_raw();
@@ -103,6 +100,7 @@ pub fn rotate270(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> Ima
     send_progress(&progress_tx, 1.0);
     out_buffer
 }
+
 
 
 pub fn flip_horizontal(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
@@ -133,6 +131,8 @@ pub fn flip_horizontal(img: &DynamicImage, progress_tx: Option<ProgressSender>) 
     send_progress(&progress_tx, 1.0);
     output
 }
+
+
 
 pub fn flip_vertical(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();

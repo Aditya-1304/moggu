@@ -2,6 +2,7 @@ use image::{DynamicImage,GenericImageView, ImageBuffer, Rgb};
 use rayon::{iter::{IndexedParallelIterator, ParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 use crate::{ProgressSender, send_progress};
 
+
 pub fn saturate(img: &DynamicImage, factor: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
     let (width, height) = rgb_img.dimensions();
@@ -17,7 +18,7 @@ pub fn saturate(img: &DynamicImage, factor: f32, progress_tx: Option<ProgressSen
         .zip(out_pixels.par_chunks_exact_mut(3))
         .for_each(|(in_pixel, out_pixel)| {
             let (h, s, l) = rgb_to_hsl(in_pixel[0], in_pixel[1], in_pixel[2]);
-            let new_saturation = (s * factor).clamp(0.0, 0.1);
+            let new_saturation = (s * factor).clamp(0.0, 1.0);
             let (new_red, new_green, new_blue) = hsl_to_rgb(h, new_saturation, l);
 
             out_pixel[0] = new_red;
@@ -28,6 +29,8 @@ pub fn saturate(img: &DynamicImage, factor: f32, progress_tx: Option<ProgressSen
     send_progress(&progress_tx, 1.0);
     out_buffer
 }
+
+
 
 pub fn invert(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
@@ -50,6 +53,8 @@ pub fn invert(img: &DynamicImage, progress_tx: Option<ProgressSender>) -> ImageB
     send_progress(&progress_tx, 1.0);
     out_buffer
 }
+
+
 
 pub fn hue_rotate(img: &DynamicImage, degrees: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let rgb_img = img.to_rgb8();
