@@ -41,12 +41,95 @@ A lightning-fast, terminal-based image processing application built in Rust that
 ```bash
 # Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# For best image preview experience (optional)
-sudo pacman -S chafa          # Arch Linux
-# or
-cargo install viu             # Cross-platform
+source $HOME/.cargo/env
 ```
+
+#### Image Preview Dependencies (Recommended)
+
+**For the best image preview experience, install `chafa`:**
+
+##### Linux
+```bash
+# Arch Linux / Manjaro
+sudo pacman -S chafa
+
+# Ubuntu / Debian
+sudo apt update && sudo apt install chafa
+
+# Fedora / RHEL / CentOS
+sudo dnf install chafa
+# or for older versions:
+sudo yum install chafa
+
+# openSUSE
+sudo zypper install chafa
+
+# Alpine Linux
+sudo apk add chafa
+
+# Gentoo
+sudo emerge media-gfx/chafa
+
+# NixOS
+nix-env -iA nixpkgs.chafa
+# or add to configuration.nix:
+# environment.systemPackages = [ pkgs.chafa ];
+```
+
+##### macOS
+```bash
+# Homebrew (recommended)
+brew install chafa
+
+# MacPorts
+sudo port install chafa
+
+# Nix (if using Nix on macOS)
+nix-env -iA nixpkgs.chafa
+```
+
+##### Windows
+```bash
+# Windows Subsystem for Linux (WSL) - Ubuntu
+sudo apt update && sudo apt install chafa
+
+# Chocolatey (if available)
+choco install chafa
+
+# Scoop (if available)
+scoop install chafa
+
+# MSYS2
+pacman -S mingw-w64-x86_64-chafa
+
+# Manual Installation:
+# 1. Download from: https://github.com/hpjansson/chafa/releases
+# 2. Extract to a directory in your PATH
+# 3. Or use Windows Terminal with WSL for best experience
+```
+
+**Alternative: Cross-platform Rust-based image viewer**
+```bash
+# If chafa is not available, install viu (pure Rust)
+cargo install viu
+
+# Or sixel-image (for terminals with sixel support)
+cargo install sixel-image
+```
+
+**Terminal Compatibility Check:**
+```bash
+# Test if your terminal supports chafa
+echo "Testing chafa..." && chafa --version
+
+# Test image display (replace with any image file)
+chafa your-image.jpg
+
+# Test viu if installed
+viu your-image.jpg
+```
+
+**Note:** For Windows users, we highly recommend using **Windows Terminal** with WSL2 for the best experience, as native Windows terminals have limited image display capabilities.
 
 ### Build & Run
 ```bash

@@ -697,6 +697,10 @@ impl App {
     println!(" For Arch Linux, install chafa (recommended):");
     println!("   sudo pacman -S chafa");
     println!();
+    println!(" For other Linux distributions, macOS, or Windows:");
+    println!("   Check the README.md file for detailed installation instructions");
+    println!("   for your specific operating system and package manager.");
+    println!();
     println!(" Alternative options:");
     println!("   • viu (Rust):     cargo install viu");
     println!("   • catimg:         sudo pacman -S catimg");
