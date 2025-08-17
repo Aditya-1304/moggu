@@ -1,12 +1,14 @@
 use crossterm::{
   event::{self, DisableMouseCapture}
 };
+use moggu::process_filter;
 use ratatui::{
   backend::Backend, style::Color, widgets::ListState
 };
 
 
-use std::{error::Error, io};
+use rfd::AsyncFileDialog;
+use std::{error::Error, io, process::Command, sync::mpsc, thread};
 use tokio::runtime::Runtime;
 
 
@@ -73,7 +75,7 @@ pub enum ParamType {
 pub enum AppState {
   Welcome,
   FileInput,
-  FilterSection,
+  FilterSelection,
   ParameterInput,
   Processing,
   Result,
@@ -96,6 +98,9 @@ pub struct App {
   pub processing_progress: f64,
   pub selected_category: Option<FilterCategory>,
   pub runtime: Runtime,
+  pub image_preview: Option<String>,
+  pub has_image_support: bool,
+  pub progress_receiver: Option<mpsc::Receiver<f64>>,
 }
 
 #[derive(Debug)]
@@ -373,7 +378,327 @@ impl App {
         icon: "📝",
       },
     ];
+
+    let mut app = App {
+      state: AppState::Welcome,
+      filters,
+      filter_list_state: ListState::default(),
+      selected_filter: None,
+      input_file: String::new(),
+      output_file: String::new(),
+      current_param_index: 0,
+      param_values: vec![],
+      input_mode: InputMode::InputFile,
+      current_input: String::new(),
+      message: String::new(),
+      show_help: false,
+      processing_progress: 0.0,
+      selected_category: None,
+      runtime: Runtime::new().unwrap(),
+      image_preview: None,
+      has_image_support: Self::detect_image_support(),
+      progress_receiver: None,
+    };
+
+    app.filter_list_state.select(Some(0));
+    app
   }
+
+  fn detect_image_support() -> bool {
+    if Command::new("chafa").arg("--version").output().is_ok() {
+      return true;
+    }
+    if Command::new("viu").arg("--version").output().is_ok() {
+      return true;
+    }
+    false
+  }
+
+  pub fn next_filter(&mut self) {
+    let filtered_filters = self.get_filtered_filters();
+    let i = match self.filter_list_state.selected() {
+      Some(i) => {
+        if i >= filtered_filters.len() - 1 {
+          0
+        } else {
+          i + 1
+        }
+      }
+      None => 0,
+    };
+    self.filter_list_state.select(Some(i));
+  }
+
+  pub fn previous_filter(&mut self) {
+        let filtered_filters = self.get_filtered_filters();
+        let i = match self.filter_list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    filtered_filters.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.filter_list_state.select(Some(i));
+    }
+  
+
+  pub fn get_filtered_filters(&self) -> Vec<&Filter> {
+    if let Some(category) = &self.selected_category {
+      self.filters
+        .iter()
+        .filter(|f| &f.category == category)
+        .collect()
+    } else {
+        self.filters.iter().collect()
+    }
+  }
+
+  pub fn select_current_filter(&mut self) {
+    let filtered_filters = self.get_filtered_filters();
+    if let Some(i) = self.filter_list_state.selected() {
+      if i  < filtered_filters.len() {
+        let selected_filters = filtered_filters[i].clone();
+        let requires_params = selected_filters.requires_param;
+        let params = selected_filters.params.clone();
+
+        self.selected_filter = Some(selected_filters);
+
+        if requires_params {
+          self.param_values = params.iter().map(|p| p.default.clone()).collect();
+          self.current_param_index = 0;
+          self.state = AppState::ParameterInput;
+          self.current_input = self.param_values[0].clone();
+        } else {
+          self.process_image();
+        }
+      }
+    }
+  }
+
+  pub fn next_parameter(&mut self) {
+    if let Some(filter) = &self.selected_filter {
+      if self.current_param_index < filter.params.len() - 1 {
+          self.param_values[self.current_param_index] = self.current_input.clone();
+          self.current_param_index += 1;
+          self.current_input = self.param_values[self.current_param_index].clone();
+      } else {
+          self.param_values[self.current_param_index] = self.current_input.clone();
+          self.process_image();
+      }
+    }
+  }
+
+  pub fn previous_parameter(&mut self) {
+    if self.current_param_index > 0 {
+      self.param_values[self.current_param_index] = self.current_input.clone();
+      self.current_param_index -= 1;
+      self.current_input = self.param_values[self.current_param_index].clone();
+    }
+  }
+
+  pub async fn open_file_dialog(&mut self, for_output: bool) {
+    let title = if for_output {
+      "Save processed image as..."
+    } else {
+      "Select an image to process"
+    };
+
+    let file = if for_output {
+      AsyncFileDialog::new()
+        .set_title(title)
+        .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "tiff", "gif"])
+        .save_file()
+        .await
+    } else {
+      AsyncFileDialog::new()
+        .set_title(title)
+        .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "tiff", "gif"])
+        .pick_file()
+        .await
+    };
+
+    if let Some(file) = file {
+      let path = file.path().to_string_lossy().to_string();
+      if for_output {
+          self.output_file = path;
+          self.state = AppState::FilterSelection;
+      } else {
+          self.input_file = path;
+          self.input_mode = InputMode::OutputFile;
+      }
+    }
+  }
+
+  pub fn process_image(&mut self) {
+    self.state = AppState::Processing;
+    self.processing_progress = 0.0;
+
+    if let Some(filter) = &self.selected_filter.clone() {
+      let input_file = self.input_file.clone();
+      let output_file = self.output_file.clone();
+      let param_values = self.param_values.clone();
+      let filter_name = filter.name.clone();
+
+      let (progress_tx, progress_rx) = mpsc::channel();
+
+      let _handle = thread::spawn(move || {
+        let _ = process_filter(&filter_name, &input_file, &output_file, &param_values, Some(progress_tx)); 
+      });
+
+      self.progress_receiver = Some(progress_rx);
+    }
+  }
+
+  pub fn update_progress(&mut self) -> bool {
+    if let Some(ref reciever) = self.progress_receiver {
+        match reciever.try_recv() {
+          Ok(progress) => {
+            self.processing_progress = progress;
+            if progress >= 1.0 {
+              self.message = if let Some(filter) = &self.selected_filter {
+                format!(" ^_^ Successfully applied {} filter!\n\n Output saved to: {}\n\n Press 'v' to view image or 'r' to process another", filter.name, self.output_file)
+              } else {
+                "Processing Completed !!".to_string()
+              };
+              // self.image_preview = self.generate_ascii_preview(&self.output_file);
+              self.state = AppState::Result;
+              self.progress_receiver = None;
+              return true;
+            }
+            false
+          }
+          Err(_) => false,
+        }
+    } else {
+      false
+    }
+  }
+
+  fn display_inline_image(&self, image_path: &str) {
+    println!(" Displaying image: {}", image_path);
+    println!();
+
+    if self.try_chafa(image_path) {
+      return;
+    }
+    if self.try_viu(image_path) {
+      return;
+    }
+
+    self.show_installation_help(image_path);
+  }
+
+  fn try_chafa(&self, image_path: &str) -> bool {
+    if Command::new("chafa").arg("--version").output().is_ok() {
+      let (width, height) = self.get_terminal_size();
+
+      if let Ok(output) = Command::new("chafa")
+        .arg("--size").arg(format!("{}x{}", width.min(120), height.min(40)))
+        .arg("--colors=256")
+        .arg("--symbols=block")
+        .arg("--stretch")
+        .arg("--animate=off")
+        .arg(image_path)
+        .output()
+    {
+        if output.status.success() {
+            print!("{}", String::from_utf8_lossy(&output.stdout));
+            // println!("\nImage displayed using chafa");
+            return true;
+        } else {
+            // println!("Chafa failed: {}", String::from_utf8_lossy(&output.stderr));
+            println!("");
+        }
+      }
+    }
+    false
+  }
+
+  fn try_viu(&self, image_path: &str) -> bool {
+        if Command::new("viu").arg("--version").output().is_ok() {
+            println!("Using viu for image display...");
+            
+            if let Ok(output) = Command::new("viu")
+                .arg("-w").arg("100")
+                .arg("-h").arg("35")
+                .arg("--static")
+                .arg(image_path)
+                .output()
+            {
+                if output.status.success() {
+                    print!("{}", String::from_utf8_lossy(&output.stdout));
+                    // println!("\n Image displayed using viu");
+                    return true;
+                } else {
+                    // println!("Viu failed: {}", String::from_utf8_lossy(&output.stderr));
+                    println!("");
+                }
+            }
+        }
+        false
+    }
+
+  fn get_terminal_size(&self) -> (u16, u16) {
+    if let Ok((width, height)) = crossterm::terminal::size() {
+      (width, height)
+    } else {
+      (80, 24)
+    }
+  }
+
+  fn show_installation_help(&self, image_path: &str) {
+    println!(" No supported image display method found.");
+    println!();
+    println!(" For Arch Linux, install chafa (recommended):");
+    println!("   sudo pacman -S chafa");
+    println!();
+    println!(" Alternative options:");
+    println!("   • viu (Rust):     cargo install viu");
+    println!("   • catimg:         sudo pacman -S catimg");
+    println!();
+    println!(" Image saved to: {}", image_path);
+    
+    if let Ok(metadata) = std::fs::metadata(image_path) {
+        println!(" File size: {:.2} KB", metadata.len() as f64 / 1024.0);
+    }
+    
+    println!();
+    println!(" After installing chafa, restart the application for best results!");
+  }
+
+  pub fn reset(&mut self) {
+    self.state = AppState::Welcome;
+    self.input_mode = InputMode::InputFile;
+    self.selected_filter = None;
+    self.current_param_index = 0;
+    self.param_values.clear();
+    self.current_input.clear();
+    self.message.clear();
+    self.processing_progress = 0.0;
+    self.selected_category = None;
+    self.progress_receiver = None;
+  }
+
+  pub fn cycle_category(&mut self) {
+    let categories = vec![
+      None,
+      Some(FilterCategory::Basic),
+      Some(FilterCategory::Color),
+      Some(FilterCategory::Geometric),
+      Some(FilterCategory::Artistic),
+      Some(FilterCategory::Enhancement),
+      Some(FilterCategory::Utility),
+    ];
+
+    let current_index = categories.iter().position(|c| c == &self.selected_category).unwrap_or(0);
+    let next_index = (current_index + 1) % categories.len();
+    self.selected_category = categories[next_index].clone();
+    self.filter_list_state.select(Some(0));
+  }
+
 }
 fn main() {
   println!("hello world")
