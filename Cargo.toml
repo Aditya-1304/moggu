@@ -2,21 +2,30 @@
 name = "moggu"
 version = "0.1.0"
 edition = "2024"
+authors = ["Aditya Mandal <mandaladitya1614@gmail.com>"]
+license = "MIT"
+description = "A lightning-fast TUI image processing tool with 22+ professional filters in under 200ms"
+homepage = "https://github.com/Aditya-1304/moggu"
+repository = "https://github.com/Aditya-1304/moggu"
+readme = "README.md"
+keywords = ["image", "processing", "tui", "filters", "terminal"]
+categories = ["multimedia::images", "command-line-utilities"]
+exclude = [
+  "dev-tools/",
+  "test_images/",
+  "*.jpeg",
+  "*.png",
+  "*.txt",
+  "*.ppm",
+  "*.sh"
+]
 
-[lib]
+[[bin]]
 name = "moggu"
-path = "src/lib.rs"
+path = "src/main.rs"
 
-[[bin]]
-name = "image_tool"
-path = "src/bin/image_tool.rs"
-
-[[bin]]
-name = "image_tui"
-path = "src/bin/image_tui.rs"
 
 [dependencies]
-base = "0.1.0"
 base64 = "0.22.1"
 crossterm = "0.29.0"
 image = "0.25.6"

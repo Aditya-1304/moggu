@@ -287,12 +287,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "base"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a956d500c2380c818e09d3d7c79ba4a1d7fc6354464f1fceaa5705483a29930"
-
-[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1342,7 +1336,6 @@ dependencies = [
 name = "moggu"
 version = "0.1.0"
 dependencies = [
- "base",
  "base64",
  "crossterm 0.29.0",
  "image",
