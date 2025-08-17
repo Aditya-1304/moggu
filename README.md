@@ -37,6 +37,18 @@ A lightning-fast, terminal-based image processing application built in Rust that
 
 ## 🛠️ Installation
 
+### From crates.io (Recommended)
+```bash
+cargo install moggu
+```
+
+### From Source
+```bash
+git clone https://github.com/yourusername/moggu
+cd moggu
+cargo install --path .
+```
+
 ### Prerequisites
 ```bash
 # Install Rust
@@ -130,14 +142,6 @@ viu your-image.jpg
 ```
 
 **Note:** For Windows users, we highly recommend using **Windows Terminal** with WSL2 for the best experience, as native Windows terminals have limited image display capabilities.
-
-### Build & Run
-```bash
-git clone https://github.com/yourusername/moggu
-cd moggu
-cargo build --release
-cargo run
-```
 
 ## 🎮 Usage
 
