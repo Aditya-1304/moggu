@@ -1,16 +1,28 @@
+use moggu::*;
+use std::sync::mpsc;
+use std::thread;
+
+use base64::Engine;
 use crossterm::{
-  event::{self, DisableMouseCapture}
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use moggu::process_filter;
 use ratatui::{
-  backend::Backend, style::Color, widgets::ListState
+    backend::{Backend, CrosstermBackend},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{
+        Block, Borders, BorderType, Clear, Gauge, List, ListItem, ListState, Paragraph, Wrap,
+    },
+    Frame, Terminal,
 };
-
-
 use rfd::AsyncFileDialog;
-use std::{error::Error, io, process::Command, sync::mpsc, thread};
+use std::{ io, process::Command};
 use tokio::runtime::Runtime;
 
+use image::{ImageReader, DynamicImage};
 
 #[derive(Debug, Clone)]
 pub struct Filter {
@@ -700,6 +712,255 @@ impl App {
   }
 
 }
-fn main() {
-  println!("hello world")
+
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+  enable_raw_mode()?;
+  let mut stdout = io::stdout();
+  execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+  let backend = CrosstermBackend::new(stdout);
+  let mut terminal = Terminal::new(backend)?;
+
+  let app = App::new();
+  let res = run_app(&mut terminal, app);
+
+  disable_raw_mode()?;
+  execute!(
+    terminal.backend_mut(),
+    LeaveAlternateScreen,
+    DisableMouseCapture
+  )?;
+  terminal.show_cursor()?;
+
+  if let Err(err) = res {
+    println!("{err:?}");
+  }
+
+  Ok(())
+}
+
+
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+  loop {
+      terminal.draw(|f| ui(f, &mut app))?;
+
+      if matches!(app.state, AppState::Processing) {
+        app.update_progress();
+
+        if event::poll(std::time::Duration::from_millis(20))? {
+          if let Event::Key(key) = event::read()? {
+              if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
+                return Ok(());
+              }
+          }
+        }
+        continue;
+      }
+
+      if let Event::Key(key) = event::read()? {
+        if key.kind == KeyEventKind::Press {
+          match app.state {
+              AppState::Welcome => {
+                match key.code {
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('h') => app.show_help = !app.show_help,
+                    KeyCode::Enter | KeyCode::Char(' ') => app.state = AppState::FileInput,
+                    _ => {}
+                }
+              }
+
+              AppState::FileInput => {
+                match key.code {
+                  KeyCode::Char('q') => return Ok(()),
+                  KeyCode::Char('h') => app.show_help = !app.show_help,
+                  KeyCode::Char('f') => {
+                    let rt = Runtime::new().unwrap();
+                    rt.block_on(async {
+                        app.open_file_dialog(false).await;
+                    });
+                  }
+
+                  KeyCode::Char('o') => {
+                    if !app.input_file.is_empty() {
+                      let rt = Runtime::new().unwrap();
+                      rt.block_on(async {
+                          app.open_file_dialog(true).await;
+                      });
+                    }
+                  }
+
+                  KeyCode::Tab => {
+                      match app.input_mode {
+                        InputMode::InputFile => {
+                          if !app.current_input.is_empty() {
+                              app.input_file = app.current_input.clone();
+                              app.current_input.clear();
+                              app.input_mode = InputMode::OutputFile;
+                          }
+                        }
+
+                        InputMode::OutputFile => {
+                          if !app.current_input.is_empty() {
+                              app.output_file = app.current_input.clone();
+                              app.current_input.clear();
+                              app.state = AppState::FilterSelection;
+                          }
+                        }
+
+                        _ => {}
+                      }
+                  }
+                  KeyCode::Enter => {
+                    match app.input_mode {
+                      InputMode::InputFile => {
+                        if !app.current_input.is_empty() {
+                            app.input_file = app.current_input.clone();
+                            app.current_input.clear();
+                            app.input_mode = InputMode::OutputFile;
+                        }
+                      }
+                      InputMode::OutputFile => {
+                        if !app.current_input.is_empty() {
+                            app.output_file = app.current_input.clone();
+                            app.current_input.clear();
+                            app.state = AppState::FilterSelection;
+                        }
+                      }
+                      _ => {}
+                    }
+                  }
+                  KeyCode::Char(c) => {
+                      app.current_input.push(c);
+                  }
+                  KeyCode::Backspace => {
+                      app.current_input.pop();
+                  }
+                  KeyCode::Esc => app.state = AppState::Welcome,
+                  _ => {}
+                }
+              }
+
+              AppState::FilterSelection => {
+                match key.code {
+                  KeyCode::Char('q') => return Ok(()),
+                  KeyCode::Char('h') => app.show_help = !app.show_help,
+                  KeyCode::Char('c') => app.cycle_category(),
+                  KeyCode::Down | KeyCode::Char('j') => app.next_filter(),
+                  KeyCode::Up | KeyCode::Char('k') => app.previous_filter(),
+                  KeyCode::Enter => app.select_current_filter(),
+                  KeyCode::Esc => app.state = AppState::FileInput,
+                  _ => {}
+                }
+              }
+
+              AppState::ParameterInput => {
+                match key.code {
+                  KeyCode::Char('q') => return Ok(()),
+                  KeyCode::Char('h') => app.show_help = !app.show_help,
+                  KeyCode::Enter | KeyCode::Tab => app.next_parameter(),
+                  KeyCode::Up => app.previous_parameter(),
+                  KeyCode::Char(c) => {
+                      app.current_input.push(c);
+                  }
+                  KeyCode::Backspace => {
+                      app.current_input.pop();
+                  }
+                  KeyCode::Esc => {
+                      app.state = AppState::FilterSelection;
+                  }
+                  _ => {}
+                }
+              }
+
+              AppState::Processing => {
+                if key.code == KeyCode::Char('q') {
+                  return Ok(());
+                }
+              }
+
+              AppState::Result => {
+                match key.code {
+                  KeyCode::Char('q') => return Ok(()),
+                  KeyCode::Char('r') => app.reset(),
+                  KeyCode::Char('v') => {
+                    if !app.output_file.is_empty() && app.message.contains(" ") {
+
+                      let current_state = app.state.clone();
+                      disable_raw_mode()?;
+
+                      execute!(
+                        io::stdout(),
+                        crossterm::terminal::LeaveAlternateScreen,
+                        DisableMouseCapture
+                      )?;
+
+                      while crossterm::event::poll(std::time::Duration::from_millis(0))? {
+                        let _ = crossterm::event::read()?;
+                      }
+
+                      print!("\x1b[2J\x1b[H");
+                      println!(" Image Preview - {}", app.output_file);
+                      println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                      println!();
+
+                      app.display_inline_image(&app.output_file);
+
+                      println!();
+                      println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                      println!("Press Enter to return to the app...");
+
+                      loop {
+                        match crossterm::event::read() {
+                          Ok(Event::Key(key)) => {
+                            if key.kind == KeyEventKind::Press && key.code == KeyCode::Enter {
+                              break;
+                            }
+                          }
+                          _ => {
+
+                          } 
+                        }
+                      }
+
+                      while crossterm::event::poll(std::time::Duration::from_millis(50))? {
+                        let _ = crossterm::event::read()?;
+                      }
+
+                      app.state = current_state;
+
+                      terminal.clear()?;
+
+                      while crossterm::event::poll(std::time::Duration::from_millis(10))? {
+                        let _ = crossterm::event::read()?;
+                      }
+                      continue;
+                    }
+                  }
+
+                  KeyCode::Enter | KeyCode::Esc => app.reset(),
+
+                  _ => {}
+                }
+              }
+          }
+        }
+      }
+  }
+}
+
+fn ui(f: &mut Frame, app: &mut App) {
+    let size = f.area();
+
+    match app.state {
+        AppState::Welcome => render_welcome(f, app, size),
+        AppState::FileInput => render_file_input(f, app, size),
+        AppState::FilterSelection => render_filter_selection(f, app, size),
+        AppState::ParameterInput => render_parameter_input(f, app, size),
+        AppState::Processing => render_processing(f, app, size),
+        AppState::Result => render_result(f, app, size),
+    }
+
+    if app.show_help {
+        render_help_popup(f, app, size);
+    }
 }
