@@ -11,10 +11,10 @@ use crossterm::{
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{
-        Block, Borders, BorderType, Clear, Gauge, List, ListItem, ListState, Paragraph, Wrap,
+        Block, BorderType, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Wrap
     },
     Frame, Terminal,
 };
@@ -963,4 +963,886 @@ fn ui(f: &mut Frame, app: &mut App) {
     if app.show_help {
         render_help_popup(f, app, size);
     }
+}
+
+fn render_welcome(f: &mut Frame, _app: &App, area: Rect) {
+  let chunks = Layout::default()
+    .direction(Direction::Vertical)
+    .margin(2)
+    .constraints([
+      Constraint::Length(8),
+      Constraint::Length(6),
+      Constraint::Min(0),
+    ])
+    .split(area);
+
+  let title_text = vec![
+    Line::from(""),
+    Line::from(vec![
+      Span::styled("", Style::default().fg(Color::Blue)),
+      Span::styled("Moggu", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+      Span::styled(" - Image Processing Tool", Style::default().fg(Color::White)),
+    ]),
+    Line::from(""),
+    Line::from(vec![
+      Span::raw("    "),
+      Span::styled(" Transform your images with powerful filters ", Style::default().fg(Color::Blue)),
+    ]),
+    Line::from(""),
+  ];
+
+  let title = Paragraph::new(title_text)
+      .alignment(Alignment::Center)
+      .block(
+        Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(" Welcome ")
+        .title_style(Style::default().fg(Color::Cyan))
+        .add_modifier(Modifier::BOLD)
+      );
+  f.render_widget(title, chunks[0]);
+
+  let features_text = vec![
+    Line::from(vec![
+        Span::styled(" ", Style::default().fg(Color::Green)),
+        Span::raw("22+ Professional Filters"),
+    ]),
+    Line::from(vec![
+        Span::styled(" ", Style::default().fg(Color::Blue)),
+        Span::raw("Easy File Selection with Built-in File Browser"),
+    ]),
+    Line::from(vec![
+        Span::styled(" ", Style::default().fg(Color::Yellow)),
+        Span::raw("Real-time Parameter Adjustment"),
+    ]),
+    Line::from(vec![
+        Span::styled(" ", Style::default().fg(Color::Red)),
+        Span::raw("Categorized Filters for Easy Navigation"),
+    ]),
+  ];
+
+  let features = Paragraph::new(features_text)
+    .alignment(Alignment::Center)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(Color::Green))
+            .title(" Features ")
+            .title_style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+    );
+  f.render_widget(features, chunks[1]);
+  
+
+  let controls_text = vec![
+    Line::from(""),
+    Line::from(vec![
+        Span::styled(" Press ", Style::default().fg(Color::White)),
+        Span::styled("Enter", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled(" or ", Style::default().fg(Color::White)),
+        Span::styled("Space", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled(" to get started!", Style::default().fg(Color::White)),
+    ]),
+    Line::from(""),
+    Line::from(vec![
+        Span::styled(" Press ", Style::default().fg(Color::White)),
+        Span::styled("'h'", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(" for help  |  ", Style::default().fg(Color::White)),
+        Span::styled("'q'", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        Span::styled(" to quit", Style::default().fg(Color::White)),
+    ]),
+    Line::from(""),
+  ];
+
+  let controls = Paragraph::new(controls_text)
+    .alignment(Alignment::Center)
+    .block(
+      Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::Yellow))
+        .title(" Controls ")
+        .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+    );
+  f.render_widget(controls, chunks[2]);
+
+
+}
+
+
+
+fn render_file_input(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints([
+            Constraint::Length(5),
+            Constraint::Length(5),
+            Constraint::Length(7),
+            Constraint::Min(0),
+        ])
+        .split(area);
+
+    // Input file section
+    let input_title = match app.input_mode {
+        InputMode::InputFile => " Input File Path (Currently Typing)",
+        _ => " Input File Path",
+    };
+
+    let input_style = if matches!(app.input_mode, InputMode::InputFile) {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::Green)
+    };
+
+    let input_value = if matches!(app.input_mode, InputMode::InputFile) {
+        &app.current_input
+    } else {
+        &app.input_file
+    };
+
+    let input = Paragraph::new(input_value.as_str())
+        .style(input_style)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(input_title)
+                .border_style(if matches!(app.input_mode, InputMode::InputFile) {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default().fg(Color::Green)
+                })
+        );
+    f.render_widget(input, chunks[0]);
+
+    // Output file section
+    let output_title = match app.input_mode {
+        InputMode::OutputFile => " Output File Path (Currently Typing)",
+        _ => " Output File Path",
+    };
+
+    let output_style = if matches!(app.input_mode, InputMode::OutputFile) {
+        Style::default().fg(Color::Yellow)
+    } else if !app.output_file.is_empty() {
+        Style::default().fg(Color::Green)
+    } else {
+        Style::default().fg(Color::Gray)
+    };
+
+    let output_value = if matches!(app.input_mode, InputMode::OutputFile) {
+        &app.current_input
+    } else {
+        &app.output_file
+    };
+
+    let output = Paragraph::new(output_value.as_str())
+        .style(output_style)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(output_title)
+                .border_style(if matches!(app.input_mode, InputMode::OutputFile) {
+                    Style::default().fg(Color::Yellow)
+                } else if !app.output_file.is_empty() {
+                    Style::default().fg(Color::Green)
+                } else {
+                    Style::default().fg(Color::Gray)
+                })
+        );
+    f.render_widget(output, chunks[1]);
+
+    // File picker section
+    let picker_text = vec![
+        Line::from(vec![
+            Span::styled(" Quick File Selection:", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  'f'", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::raw(" - Open file browser to select input image"),
+        ]),
+        Line::from(vec![
+            Span::styled("  'o'", Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)),
+            Span::raw(" - Open file browser to choose output location"),
+        ]),
+        Line::from(""),
+    ];
+
+    let picker = Paragraph::new(picker_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(" File Browser ")
+                .border_style(Style::default().fg(Color::Cyan))
+        );
+    f.render_widget(picker, chunks[2]);
+
+    // Controls section
+    let help_text = vec![
+        Line::from(vec![
+            Span::styled("⌨  Manual Input:", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from("  • Type file paths directly"),
+        Line::from("  • Tab/Enter - Move to next field"),
+        Line::from("  • Backspace - Delete characters"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" Navigation:", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from("  • Esc - Go back to welcome screen"),
+        Line::from("  • 'h' - Show help  •  'q' - Quit"),
+    ];
+
+    let help = Paragraph::new(help_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(" Controls ")
+                .border_style(Style::default().fg(Color::Green))
+        );
+    f.render_widget(help, chunks[3]);
+}
+
+
+fn render_filter_selection(f: &mut Frame, app: &mut App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .split(area);
+
+    // Category selector
+    let category_text = if let Some(cat) = &app.selected_category {
+        format!(" Category: {} (Press 'c' to cycle)", cat.name())
+    } else {
+        " Category: All Filters (Press 'c' to cycle)".to_string()
+    };
+
+    let category_color = app.selected_category
+        .as_ref()
+        .map(|c| c.color())
+        .unwrap_or(Color::White);
+
+    let category = Paragraph::new(category_text)
+        .style(Style::default().fg(category_color).add_modifier(Modifier::BOLD))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(category_color))
+        );
+    f.render_widget(category, chunks[0]);
+
+    let main_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(chunks[1]);
+
+    // Extract all needed data before creating any widgets
+    let all_filters = &app.filters;
+    let selected_category = &app.selected_category;
+    let selected_index = app.filter_list_state.selected();
+    
+
+    let filtered_filters: Vec<&Filter> = if let Some(category) = selected_category {
+        all_filters.iter().filter(|f| &f.category == category).collect()
+    } else {
+        all_filters.iter().collect()
+    };
+    
+    let filters_count = filtered_filters.len();
+    
+    let filters: Vec<ListItem> = filtered_filters
+        .iter()
+        .enumerate()
+        .map(|(i, filter)| {
+            let content = format!("{} {} - {}", filter.icon, filter.name, filter.description);
+            if Some(i) == selected_index {
+                ListItem::new(content).style(
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(filter.category.color())
+                        .add_modifier(Modifier::BOLD)
+                )
+            } else {
+                ListItem::new(content).style(Style::default().fg(filter.category.color()))
+            }
+        })
+        .collect();
+
+    let filters_list = List::new(filters)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(format!("  Filters ({}) ", filters_count))
+                .border_style(Style::default().fg(Color::Cyan))
+        )
+        .highlight_style(Style::default().bg(Color::DarkGray));
+
+    f.render_stateful_widget(filters_list, main_chunks[0], &mut app.filter_list_state);
+
+    let info_text = if let Some(i) = selected_index {
+        if i < filtered_filters.len() {
+            let filter = filtered_filters[i];
+            let mut lines = vec![
+                Line::from(vec![
+                    Span::raw(filter.icon),
+                    Span::raw(" "),
+                    Span::styled(&filter.name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Category: ", Style::default().fg(Color::Yellow)),
+                    Span::styled(filter.category.name(), Style::default().fg(filter.category.color()).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Description:", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::raw("  "),
+                    Span::raw(&filter.description),
+                ]),
+                Line::from(""),
+            ];
+
+            if filter.requires_param {
+                lines.push(Line::from(vec![
+                    Span::styled("Parameters:", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]));
+                for param in &filter.params {
+                    lines.push(Line::from(vec![
+                        Span::raw("  🔹 "),
+                        Span::styled(&param.name, Style::default().fg(Color::Yellow)),
+                        Span::raw(": "),
+                        Span::raw(&param.description),
+                    ]));
+                }
+            } else {
+                lines.push(Line::from(vec![
+                    Span::styled(" No parameters required", Style::default().fg(Color::Green)),
+                ]));
+            }
+
+            lines.push(Line::from(""));
+            lines.push(Line::from("🔹 Press Enter to select"));
+            lines.push(Line::from("🔹 Use ↑/↓ or j/k to navigate"));
+            lines.push(Line::from("🔹 Press 'c' to cycle categories"));
+            lines.push(Line::from("🔹 Press Esc to go back"));
+
+            lines
+        } else {
+            vec![Line::from("No filter selected")]
+        }
+    } else {
+        vec![Line::from("No filter selected")]
+    };
+
+    let info = Paragraph::new(info_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("   Filter Details ")
+                .border_style(Style::default().fg(Color::Green))
+        )
+        .wrap(Wrap { trim: true });
+    f.render_widget(info, main_chunks[1]);
+}
+
+
+fn render_parameter_input(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints([
+            Constraint::Length(5),
+            Constraint::Length(8),
+            Constraint::Length(5),
+            Constraint::Min(0),
+        ])
+        .split(area);
+
+    if let Some(filter) = &app.selected_filter {
+        let param = &filter.params[app.current_param_index];
+        
+        let title = format!(" {} - Parameter {} of {}", filter.name, app.current_param_index + 1, filter.params.len());
+        let input = Paragraph::new(app.current_input.as_str())
+            .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title(title.as_str())
+                    .border_style(Style::default().fg(Color::Yellow))
+            );
+        f.render_widget(input, chunks[0]);
+
+        let param_info = vec![
+            Line::from(vec![
+                Span::styled("Parameter: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(&param.name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Description: ", Style::default().fg(Color::Green)),
+                Span::raw(&param.description),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Default Value: ", Style::default().fg(Color::Blue)),
+                Span::styled(&param.default, Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Range: ", Style::default().fg(Color::Red)),
+                Span::raw(match &param.param_type {
+                    ParamType::Integer { min, max } => format!("{} to {}", min, max),
+                    ParamType::Float { min, max } => format!("{:.1} to {:.1}", min, max),
+                    ParamType::Boolean => "true or false".to_string(),
+                }),
+            ]),
+        ];
+
+        let info = Paragraph::new(param_info)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title(" Parameter Details ")
+                    .border_style(Style::default().fg(Color::Cyan))
+            );
+        f.render_widget(info, chunks[1]);
+
+        let progress = (app.current_param_index as f64 + 1.0) / filter.params.len() as f64;
+        let progress_text = format!("Progress: {}/{} parameters", app.current_param_index + 1, filter.params.len());
+        
+        let gauge = Gauge::default()
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("  Progress ")
+                    .border_style(Style::default().fg(Color::Green))
+            )
+            .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
+            .percent((progress * 100.0) as u16)
+            .label(progress_text);
+        f.render_widget(gauge, chunks[2]);
+
+        let help_text = vec![
+            Line::from(vec![
+                Span::styled("⌨  Controls:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(""),
+            Line::from("  • Type parameter value"),
+            Line::from("  • Tab/Enter - Next parameter or process"),
+            Line::from("  • ↑ - Previous parameter"),
+            Line::from("  • Backspace - Delete characters"),
+            Line::from("  • Esc - Back to filter selection"),
+            Line::from("  • 'q' - Quit application"),
+        ];
+
+        let help = Paragraph::new(help_text)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title(" Help ")
+                    .border_style(Style::default().fg(Color::Green))
+            );
+        f.render_widget(help, chunks[3]);
+    }
+}
+
+
+fn render_processing(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(4)
+        .constraints([
+            Constraint::Length(5),
+            Constraint::Length(3),
+            Constraint::Min(0),
+        ])
+        .split(area);
+
+    let processing_text = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" Processing your image...", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+    ];
+
+    let processing = Paragraph::new(processing_text)
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("  Processing ")
+                .border_style(Style::default().fg(Color::Yellow))
+        );
+    f.render_widget(processing, chunks[0]);
+
+    let gauge = Gauge::default()
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(Color::Green))
+        )
+        .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
+        .percent((app.processing_progress * 100.0) as u16)
+        .label(format!("{:.0}%", app.processing_progress * 100.0));
+    f.render_widget(gauge, chunks[1]);
+
+    let info_text = vec![
+        Line::from(""),
+        Line::from("Please wait while your image is being processed..."),
+        Line::from("This may take a few seconds depending on the filter and image size."),
+        Line::from(""),
+    ];
+
+    let info = Paragraph::new(info_text)
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("   Information ")
+                .border_style(Style::default().fg(Color::Blue))
+        );
+    f.render_widget(info, chunks[2]);
+}
+
+
+fn render_result(f: &mut Frame, app: &App, area: Rect) {
+    if app.has_image_support {
+        render_result_with_external_image(f, app, area);
+    } else {
+        render_result_standard(f, app, area);
+    }
+}
+
+
+fn render_result_with_external_image(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints([
+            Constraint::Length(10),   // Result message
+            Constraint::Length(6),    // Image preview notice
+            Constraint::Length(8),    // Controls
+        ])
+        .split(area);
+
+    let message_color = if app.message.contains("") {
+        Color::Green
+    } else {
+        Color::Red
+    };
+
+    let border_color = if app.message.contains("") {
+        Color::Green
+    } else {
+        Color::Red
+    };
+
+    let result = Paragraph::new(app.message.as_str())
+        .style(Style::default().fg(message_color).add_modifier(Modifier::BOLD))
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("  Result ")
+                .border_style(Style::default().fg(border_color))
+        )
+        .wrap(Wrap { trim: true });
+    f.render_widget(result, chunks[0]);
+
+    let preview_notice = vec![
+        Line::from(vec![
+            Span::styled("  Image Preview Controls", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from("Press 'v' to display the processed image alongside this interface."),
+        Line::from("Press 'c' to clear any displayed images."),
+        Line::from("The image will appear without disrupting the TUI!"),
+    ];
+
+    let notice = Paragraph::new(preview_notice)
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("  Image Display ")
+                .border_style(Style::default().fg(Color::Cyan))
+        );
+    f.render_widget(notice, chunks[1]);
+
+    let help_text = vec![
+        Line::from(vec![
+            Span::styled(" Controls:", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  'v'", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::raw(" - View processed image (inline display)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  'c'", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::raw(" - Clear displayed images"),
+        ]),
+        Line::from(vec![
+            Span::styled("  'r'", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" - Process another image"),
+        ]),
+        Line::from(vec![
+            Span::styled("  'q'", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::raw(" - Quit application"),
+        ]),
+    ];
+
+    let help = Paragraph::new(help_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(" Controls ")
+                .border_style(Style::default().fg(Color::Blue))
+        );
+    f.render_widget(help, chunks[2]);
+}
+
+fn render_result_standard(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = if app.image_preview.is_some() {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .margin(2)
+            .constraints([
+                Constraint::Length(8),  // Result message
+                Constraint::Min(10),    // ASCII preview
+                Constraint::Length(7),  // Controls
+            ])
+            .split(area)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .margin(2)
+            .constraints([Constraint::Min(0), Constraint::Length(7)])
+            .split(area)
+    };
+
+    let message_color = if app.message.contains("") {
+        Color::Green
+    } else {
+        Color::Red
+    };
+
+    let border_color = if app.message.contains("") {
+        Color::Green
+    } else {
+        Color::Red
+    };
+
+    let result = Paragraph::new(app.message.as_str())
+        .style(Style::default().fg(message_color).add_modifier(Modifier::BOLD))
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("  Result ")
+                .border_style(Style::default().fg(border_color))
+        )
+        .wrap(Wrap { trim: true });
+    f.render_widget(result, chunks[0]);
+
+    // Render ASCII preview if available
+    if let Some(preview) = &app.image_preview {
+        let preview_widget = Paragraph::new(preview.as_str())
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("   ASCII Preview (Install chafa/viu for real image preview) ")
+                    .border_style(Style::default().fg(Color::Cyan))
+            );
+        f.render_widget(preview_widget, chunks[1]);
+
+        let help_text = vec![
+            Line::from(vec![
+                Span::styled(" What's Next?", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  'r'", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                Span::raw(" - Process another image"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Enter", Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)),
+                Span::raw(" - Start over"),
+            ]),
+            Line::from(vec![
+                Span::styled("  'q'", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Span::raw(" - Quit application"),
+            ]),
+        ];
+
+        let help = Paragraph::new(help_text)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title(" Controls ")
+                    .border_style(Style::default().fg(Color::Blue))
+            );
+        f.render_widget(help, chunks[2]);
+    } else {
+        let help_text = vec![
+            Line::from(vec![
+                Span::styled(" What's Next?", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  'r'", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                Span::raw(" - Process another image"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Enter", Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)),
+                Span::raw(" - Start over"),
+            ]),
+            Line::from(vec![
+                Span::styled("  'q'", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Span::raw(" - Quit application"),
+            ]),
+        ];
+
+        let help = Paragraph::new(help_text)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title(" Controls ")
+                    .border_style(Style::default().fg(Color::Blue))
+            );
+        f.render_widget(help, chunks[1]);
+    }
+}
+
+fn render_help_popup(f: &mut Frame, _app: &App, area: Rect) {
+    let popup_area = centered_rect(85, 85, area);
+    f.render_widget(Clear, popup_area);
+
+    let help_text = vec![
+        Line::from(vec![
+            Span::styled(" MOGGU - Image Processing Tool", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" File Input:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from("  • Type file paths manually or use file browser"),
+        Line::from("  • 'f' - Open file browser for input image"),
+        Line::from("  • 'o' - Open file browser for output location"),
+        Line::from("  • Tab/Enter - Move between input fields"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" Filter Selection:", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from("  • ↑/↓ or j/k - Navigate through filters"),
+        Line::from("  • 'c' - Cycle through filter categories"),
+        Line::from("  • Enter - Select current filter"),
+        Line::from("  • Filters are color-coded by category"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" Parameter Input:", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from("  • Type parameter values"),
+        Line::from("  • Tab/Enter - Next parameter or start processing"),
+        Line::from("  • ↑ - Previous parameter"),
+        Line::from("  • Default values are pre-filled"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Image Preview:", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from("  • 'v' - Display processed image inline"),
+        Line::from("  • 'c' - Clear displayed images"),
+        Line::from("  • Images appear alongside the TUI interface"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("⌨  Global Controls:", Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from("  • 'q' - Quit application"),
+        Line::from("  • 'h' - Toggle this help"),
+        Line::from("  • Esc - Go back to previous screen"),
+        Line::from("  • 'r' - Reset and start over"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" Filter Categories:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  Basic", Style::default().fg(Color::Blue)),
+            Span::raw(" • "),
+            Span::styled("Color", Style::default().fg(Color::Red)),
+            Span::raw(" • "),
+            Span::styled("Geometric", Style::default().fg(Color::Green)),
+            Span::raw(" • "),
+            Span::styled("Artistic", Style::default().fg(Color::Magenta)),
+            Span::raw(" • "),
+            Span::styled("Enhancement", Style::default().fg(Color::Yellow)),
+            Span::raw(" • "),
+            Span::styled("Utility", Style::default().fg(Color::Cyan)),
+        ]),
+        Line::from(""),
+        Line::from(" The image preview works best in Kitty terminal with graphics support"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Press 'h' again to close this help", Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC)),
+        ]),
+    ];
+
+    let help = Paragraph::new(help_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("  Help & Documentation ")
+                .border_style(Style::default().fg(Color::Cyan))
+        )
+        .wrap(Wrap { trim: true });
+    f.render_widget(help, popup_area);
+}
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }
