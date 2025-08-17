@@ -14,13 +14,12 @@ A lightning-fast, terminal-based image processing application built in Rust that
 - Memory-efficient operations using Rust's zero-cost abstractions
 - Real-time progress tracking
 
-### 🎯 **22+ Professional Filters**
+### 🎯 **21+ Professional Filters**
 - **Basic Filters**: Grayscale conversion
 - **Color Manipulation**: Brightness, contrast, saturation, hue rotation, inversion, sepia
 - **Blur & Sharpening**: Gaussian blur, box blur, sharpen, edge detection
 - **Artistic Effects**: Oil painting, vignette, noise, thresholding
 - **Geometric Operations**: Rotation (90°/180°/270°), horizontal/vertical flip, crop
-- **Utility Tools**: ASCII art conversion
 
 ### 💻 **Intuitive Terminal UI**
 - Beautiful, responsive interface with color-coded categories
@@ -211,8 +210,7 @@ viu your-image.jpg
 - **Flip**: Horizontal/vertical mirroring
 - **Crop**: Custom rectangle cropping
 
-### 🟩 Utility (2 filters)
-- **ASCII Art**: Convert to text representation
+### 🟩 Utility (1 filter)
 - Advanced cropping with position control
 
 ## 🔧 Technical Details

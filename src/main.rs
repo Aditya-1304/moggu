@@ -379,14 +379,14 @@ impl App {
         category: FilterCategory::Utility,
         icon: "",
       },
-      Filter {
-        name: "ascii".to_string(),
-        description: "Convert to ASCII art".to_string(),
-        requires_param: false,
-        params: vec![],
-        category: FilterCategory::Utility,
-        icon: "",
-      },
+      // Filter {
+      //   name: "ascii".to_string(),
+      //   description: "Convert to ASCII art".to_string(),
+      //   requires_param: false,
+      //   params: vec![],
+      //   category: FilterCategory::Utility,
+      //   icon: "",
+      // },
     ];
 
     let mut app = App {

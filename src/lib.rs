@@ -159,11 +159,11 @@ pub fn process_filter(
             let result = utility::crop(&img, x, y, width, height, progress_tx);
             result.save(output_file)?;
         }
-        "ascii" => {
-            let config = AsciiConfig::default();
-            let result = utility::to_ascii_dithered(&img, &config, progress_tx)?;
-            std::fs::write(output_file, result)?;
-        }
+        // "ascii" => {
+        //     let config = AsciiConfig::default();
+        //     let result = utility::to_ascii_dithered(&img, &config, progress_tx)?;
+        //     std::fs::write(output_file, result)?;
+        // }
         
         _ => {
             return Err(format!("Unknown filter: {}", filter_name).into());

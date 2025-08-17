@@ -1,10 +1,10 @@
 [package]
 name = "moggu"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Aditya Mandal <mandaladitya1614@gmail.com>"]
 license = "MIT"
-description = "A lightning-fast TUI image processing tool with 22+ professional filters in under 200ms"
+description = "A lightning-fast TUI image processing tool with 21+ professional filters in under 200ms"
 homepage = "https://github.com/Aditya-1304/moggu"
 repository = "https://github.com/Aditya-1304/moggu"
 readme = "README.md"

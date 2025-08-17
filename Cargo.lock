@@ -1334,7 +1334,7 @@ dependencies = [
 
 [[package]]
 name = "moggu"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "crossterm 0.29.0",
