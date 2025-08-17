@@ -2,7 +2,6 @@ use moggu::*;
 use std::sync::mpsc;
 use std::thread;
 
-use base64::Engine;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
@@ -22,7 +21,6 @@ use rfd::AsyncFileDialog;
 use std::{ io, process::Command};
 use tokio::runtime::Runtime;
 
-use image::{ImageReader, DynamicImage};
 
 #[derive(Debug, Clone)]
 pub struct Filter {
@@ -131,10 +129,10 @@ impl App {
         requires_param: false,
         params: vec![],
         category: FilterCategory::Basic,
-        icon: "🔲"
+        icon: ""
       },
       Filter {
-        name: "brigntness".to_string(),
+        name: "brightness".to_string(),
         description: "Adjust image brightness". to_string(),
         requires_param: true,
         params: vec![FilterParam {
@@ -204,7 +202,7 @@ impl App {
         requires_param: false,
         params: vec![],
         category: FilterCategory::Enhancement,
-        icon: "🔍",
+        icon: "",
       },
       Filter {
         name: "thresholding".to_string(),
@@ -387,7 +385,7 @@ impl App {
         requires_param: false,
         params: vec![],
         category: FilterCategory::Utility,
-        icon: "📝",
+        icon: "",
       },
     ];
 
@@ -489,18 +487,52 @@ impl App {
       }
     }
   }
+  fn validate_parameter(&self, value: &str, param: &FilterParam) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match &param.param_type {
+            ParamType::Integer { min, max } => {
+                match value.parse::<i32>() {
+                    Ok(val) if val >= *min && val <= *max => Ok(()),
+                    Ok(_) => Err(format!("Value must be between {} and {}", min, max).into()),
+                    Err(_) => Err("Invalid integer value".into()),
+                }
+            }
+            ParamType::Float { min, max } => {
+                match value.parse::<f32>() {
+                    Ok(val) if val >= *min && val <= *max => Ok(()),
+                    Ok(_) => Err(format!("Value must be between {:.1} and {:.1}", min, max).into()),
+                    Err(_) => Err("Invalid decimal value".into()),
+                }
+            }
+            ParamType::Boolean => {
+                match value.to_lowercase().as_str() {
+                    "true" | "false" => Ok(()),
+                    _ => Err("Value must be 'true' or 'false'".into()),
+                }
+            }
+        }
+  }
 
   pub fn next_parameter(&mut self) {
-    if let Some(filter) = &self.selected_filter {
-      if self.current_param_index < filter.params.len() - 1 {
-          self.param_values[self.current_param_index] = self.current_input.clone();
-          self.current_param_index += 1;
-          self.current_input = self.param_values[self.current_param_index].clone();
-      } else {
-          self.param_values[self.current_param_index] = self.current_input.clone();
-          self.process_image();
-      }
-    }
+        if let Some(filter) = &self.selected_filter {
+            if self.current_param_index < filter.params.len() {
+                let param = &filter.params[self.current_param_index];
+                
+                if let Err(error) = self.validate_parameter(&self.current_input, param) {
+                    self.message = format!("Parameter Error: {}", error);
+                    return;
+                }
+                
+                self.param_values[self.current_param_index] = self.current_input.clone();
+                
+                if self.current_param_index < filter.params.len() - 1 {
+                    self.current_param_index += 1;
+                    self.current_input = self.param_values[self.current_param_index].clone();
+                } else {
+                    self.message.clear();
+                    self.process_image();
+                }
+            }
+        }
   }
 
   pub fn previous_parameter(&mut self) {
@@ -564,30 +596,32 @@ impl App {
     }
   }
 
+  
+
   pub fn update_progress(&mut self) -> bool {
-    if let Some(ref reciever) = self.progress_receiver {
-        match reciever.try_recv() {
-          Ok(progress) => {
-            self.processing_progress = progress;
-            if progress >= 1.0 {
-              self.message = if let Some(filter) = &self.selected_filter {
-                format!(" ^_^ Successfully applied {} filter!\n\n Output saved to: {}\n\n Press 'v' to view image or 'r' to process another", filter.name, self.output_file)
-              } else {
-                "Processing Completed !!".to_string()
-              };
-              // self.image_preview = self.generate_ascii_preview(&self.output_file);
-              self.state = AppState::Result;
-              self.progress_receiver = None;
-              return true;
+    if let Some(ref receiver) = self.progress_receiver {
+        match receiver.try_recv() {
+            Ok(progress) => {
+                self.processing_progress = progress;
+                if progress >= 1.0 {
+                    self.message = if let Some(filter) = &self.selected_filter {
+                        format!("^_^ Successfully applied {} filter!\n\nOutput saved to: {}\n\nPress 'v' to view image or 'r' to process another", filter.name, self.output_file)
+                    } else {
+                        "Processing Completed!".to_string()
+                    };
+                    self.state = AppState::Result;
+                    self.progress_receiver = None;
+                    return true;
+                }
+                false
             }
-            false
-          }
-          Err(_) => false,
+            Err(_) => false,
         }
     } else {
-      false
+        false
     }
-  }
+}
+
 
   fn display_inline_image(&self, image_path: &str) {
     println!(" Displaying image: {}", image_path);
@@ -618,10 +652,8 @@ impl App {
     {
         if output.status.success() {
             print!("{}", String::from_utf8_lossy(&output.stdout));
-            // println!("\nImage displayed using chafa");
             return true;
         } else {
-            // println!("Chafa failed: {}", String::from_utf8_lossy(&output.stderr));
             println!("");
         }
       }
@@ -642,10 +674,8 @@ impl App {
             {
                 if output.status.success() {
                     print!("{}", String::from_utf8_lossy(&output.stdout));
-                    // println!("\n Image displayed using viu");
                     return true;
                 } else {
-                    // println!("Viu failed: {}", String::from_utf8_lossy(&output.stderr));
                     println!("");
                 }
             }
@@ -814,16 +844,30 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     match app.input_mode {
                       InputMode::InputFile => {
                         if !app.current_input.is_empty() {
-                            app.input_file = app.current_input.clone();
-                            app.current_input.clear();
-                            app.input_mode = InputMode::OutputFile;
+                    
+                          if !std::path::Path::new(&app.current_input).exists() {
+                            app.message = "Error: Input file does not exist".to_string();
+                            continue;
+                          }
+                          app.input_file = app.current_input.clone();
+                          app.current_input.clear();
+                          app.input_mode = InputMode::OutputFile;
+                          app.message.clear(); 
                         }
                       }
                       InputMode::OutputFile => {
                         if !app.current_input.is_empty() {
-                            app.output_file = app.current_input.clone();
-                            app.current_input.clear();
-                            app.state = AppState::FilterSelection;
+                          
+                          if let Some(parent) = std::path::Path::new(&app.current_input).parent() {
+                            if !parent.exists() {
+                              app.message = "Error: Output directory does not exist".to_string();
+                              continue;
+                            }
+                          }
+                          app.output_file = app.current_input.clone();
+                          app.current_input.clear();
+                          app.state = AppState::FilterSelection;
+                          app.message.clear(); 
                         }
                       }
                       _ => {}
@@ -882,8 +926,15 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 match key.code {
                   KeyCode::Char('q') => return Ok(()),
                   KeyCode::Char('r') => app.reset(),
+                  KeyCode::Char('c') => {
+                    if app.has_image_support {
+                      print!("\x1b[2J\x1b[H"); 
+                      println!("Images cleared.");
+                      std::thread::sleep(std::time::Duration::from_millis(500));
+                    }
+                  }
                   KeyCode::Char('v') => {
-                    if !app.output_file.is_empty() && app.message.contains(" ") {
+                    if !app.output_file.is_empty() && app.message.contains("Successfully") {
 
                       let current_state = app.state.clone();
                       disable_raw_mode()?;
@@ -916,11 +967,18 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                               break;
                             }
                           }
-                          _ => {
-
-                          } 
+                          Ok(_) => continue, 
+                          Err(_) => break,
+                          
                         }
                       }
+
+                      enable_raw_mode()?;
+                      execute!(
+                        io::stdout(),
+                        EnterAlternateScreen,
+                        EnableMouseCapture
+                      )?;
 
                       while crossterm::event::poll(std::time::Duration::from_millis(50))? {
                         let _ = crossterm::event::read()?;
@@ -1081,11 +1139,11 @@ fn render_file_input(f: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(5),
             Constraint::Length(5),
             Constraint::Length(7),
+            Constraint::Length(3),
             Constraint::Min(0),
         ])
         .split(area);
 
-    // Input file section
     let input_title = match app.input_mode {
         InputMode::InputFile => " Input File Path (Currently Typing)",
         _ => " Input File Path",
@@ -1118,7 +1176,6 @@ fn render_file_input(f: &mut Frame, app: &App, area: Rect) {
         );
     f.render_widget(input, chunks[0]);
 
-    // Output file section
     let output_title = match app.input_mode {
         InputMode::OutputFile => " Output File Path (Currently Typing)",
         _ => " Output File Path",
@@ -1155,7 +1212,6 @@ fn render_file_input(f: &mut Frame, app: &App, area: Rect) {
         );
     f.render_widget(output, chunks[1]);
 
-    // File picker section
     let picker_text = vec![
         Line::from(vec![
             Span::styled(" Quick File Selection:", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
@@ -1182,7 +1238,26 @@ fn render_file_input(f: &mut Frame, app: &App, area: Rect) {
         );
     f.render_widget(picker, chunks[2]);
 
-    // Controls section
+    if !app.message.is_empty() {
+        let error_color = if app.message.starts_with("Error:") {
+            Color::Red
+        } else {
+            Color::Green
+        };
+        
+        let error = Paragraph::new(app.message.as_str())
+            .style(Style::default().fg(error_color).add_modifier(Modifier::BOLD))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title(" Message ")
+                    .border_style(Style::default().fg(error_color))
+            )
+            .wrap(Wrap { trim: true });
+        f.render_widget(error, chunks[3]);
+    }
+
     let help_text = vec![
         Line::from(vec![
             Span::styled("⌨  Manual Input:", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
@@ -1208,7 +1283,7 @@ fn render_file_input(f: &mut Frame, app: &App, area: Rect) {
                 .title(" Controls ")
                 .border_style(Style::default().fg(Color::Green))
         );
-    f.render_widget(help, chunks[3]);
+    f.render_widget(help, chunks[4]);
 }
 
 
@@ -1219,7 +1294,6 @@ fn render_filter_selection(f: &mut Frame, app: &mut App, area: Rect) {
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(area);
 
-    // Category selector
     let category_text = if let Some(cat) = &app.selected_category {
         format!(" Category: {} (Press 'c' to cycle)", cat.name())
     } else {
@@ -1246,7 +1320,7 @@ fn render_filter_selection(f: &mut Frame, app: &mut App, area: Rect) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(chunks[1]);
 
-    // Extract all needed data before creating any widgets
+
     let all_filters = &app.filters;
     let selected_category = &app.selected_category;
     let selected_index = app.filter_list_state.selected();
@@ -1368,6 +1442,7 @@ fn render_parameter_input(f: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(5),
             Constraint::Length(8),
             Constraint::Length(5),
+            Constraint::Length(3),
             Constraint::Min(0),
         ])
         .split(area);
@@ -1439,6 +1514,20 @@ fn render_parameter_input(f: &mut Frame, app: &App, area: Rect) {
             .label(progress_text);
         f.render_widget(gauge, chunks[2]);
 
+        if !app.message.is_empty() && app.message.contains("Parameter Error") {
+            let error = Paragraph::new(app.message.as_str())
+                .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .title(" Error ")
+                        .border_style(Style::default().fg(Color::Red))
+                )
+                .wrap(Wrap { trim: true });
+            f.render_widget(error, chunks[3]);
+        }
+
         let help_text = vec![
             Line::from(vec![
                 Span::styled("⌨  Controls:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
@@ -1460,7 +1549,7 @@ fn render_parameter_input(f: &mut Frame, app: &App, area: Rect) {
                     .title(" Help ")
                     .border_style(Style::default().fg(Color::Green))
             );
-        f.render_widget(help, chunks[3]);
+        f.render_widget(help, chunks[4]);
     }
 }
 
@@ -1541,19 +1630,19 @@ fn render_result_with_external_image(f: &mut Frame, app: &App, area: Rect) {
         .direction(Direction::Vertical)
         .margin(2)
         .constraints([
-            Constraint::Length(10),   // Result message
-            Constraint::Length(6),    // Image preview notice
-            Constraint::Length(8),    // Controls
+            Constraint::Length(10),   
+            Constraint::Length(6),    
+            Constraint::Length(8),    
         ])
         .split(area);
 
-    let message_color = if app.message.contains("") {
+    let message_color = if app.message.contains("Successfully") {
         Color::Green
     } else {
         Color::Red
     };
 
-    let border_color = if app.message.contains("") {
+    let border_color = if app.message.contains("Successfully") {
         Color::Green
     } else {
         Color::Red
@@ -1633,9 +1722,9 @@ fn render_result_standard(f: &mut Frame, app: &App, area: Rect) {
             .direction(Direction::Vertical)
             .margin(2)
             .constraints([
-                Constraint::Length(8),  // Result message
-                Constraint::Min(10),    // ASCII preview
-                Constraint::Length(7),  // Controls
+                Constraint::Length(8), 
+                Constraint::Min(10),   
+                Constraint::Length(7), 
             ])
             .split(area)
     } else {
@@ -1646,13 +1735,13 @@ fn render_result_standard(f: &mut Frame, app: &App, area: Rect) {
             .split(area)
     };
 
-    let message_color = if app.message.contains("") {
+    let message_color = if app.message.contains("Successfully") {
         Color::Green
     } else {
         Color::Red
     };
 
-    let border_color = if app.message.contains("") {
+    let border_color = if app.message.contains("Successfully") {
         Color::Green
     } else {
         Color::Red
@@ -1671,7 +1760,7 @@ fn render_result_standard(f: &mut Frame, app: &App, area: Rect) {
         .wrap(Wrap { trim: true });
     f.render_widget(result, chunks[0]);
 
-    // Render ASCII preview if available
+    
     if let Some(preview) = &app.image_preview {
         let preview_widget = Paragraph::new(preview.as_str())
             .alignment(Alignment::Center)

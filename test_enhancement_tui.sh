@@ -1,7 +1,6 @@
 #!/bin/bash
 # filepath: test_image_tui_batch.sh
 
-echo "🎨 MOGGU IMAGE TUI BATCH PERFORMANCE TEST"
 echo "========================================"
 
 # Build if needed

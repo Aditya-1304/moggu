@@ -211,7 +211,7 @@ fn vertical_box_blur(pixels: &[u8], radius: u32, width: u32, height: u32) -> Vec
 
 pub fn gaussian_blur(img: &DynamicImage, sigma: f32, progress_tx: Option<ProgressSender>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     send_progress(&progress_tx, 0.0);
-
+    
     let blurred = blur(img, sigma);
     let result = DynamicImage::ImageRgba8(blurred).to_rgb8();
     

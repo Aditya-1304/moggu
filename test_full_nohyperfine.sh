@@ -1,11 +1,10 @@
 #!/bin/bash
 
-echo "⚡ MOGGU INDIVIDUAL FUNCTION PERFORMANCE TEST"
 echo "============================================="
 
 IMAGE="test_images/Arcade_decay_red.png"
 
-echo "📸 Input: $IMAGE (17.5M pixels)"
+echo " Input: $IMAGE (17.5M pixels)"
 echo ""
 
 echo " Testing Brightness..."
