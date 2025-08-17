@@ -49,18 +49,16 @@ pub fn process_filter(
     param_values: &[String],
     progress_tx: Option<ProgressSender>,
 ) -> Result<()> {
-    // use image::DynamicImage;
     
     let img = image::open(input_file)?;
     
     match filter_name {
-        // Basic filters
+
         "grayscale" => {
             let result = basic::grayscale(&img, progress_tx);
             result.save(output_file)?;
         }
-        
-        // Enhancement filters
+
         "brightness" => {
             let value: i32 = param_values[0].parse()?;
             let result = enhancement::brightness(&img, value, progress_tx);
@@ -95,8 +93,7 @@ pub fn process_filter(
             let result = enhancement::thresholding(&img, threshold, progress_tx);
             result.save(output_file)?;
         }
-        
-        // Color filters
+
         "saturate" => {
             let factor: f32 = param_values[0].parse()?;
             let result = color::saturate(&img, factor, progress_tx);
@@ -111,8 +108,7 @@ pub fn process_filter(
             let result = color::hue_rotate(&img, degrees, progress_tx);
             result.save(output_file)?;
         }
-        
-        // Geometric filters
+
         "rotate90" => {
             let result = geometric::rotate90(&img, progress_tx);
             result.save(output_file)?;
@@ -133,8 +129,7 @@ pub fn process_filter(
             let result = geometric::flip_vertical(&img, progress_tx);
             result.save(output_file)?;
         }
-        
-        // Artistic filters
+
         "sepia" => {
             let result = artistic::sepia(&img, progress_tx);
             result.save(output_file)?;
@@ -155,8 +150,7 @@ pub fn process_filter(
             let result = artistic::oil_painting(&img, radius, intensity, progress_tx);
             result.save(output_file)?;
         }
-        
-        // Utility filters
+
         "crop" => {
             let x: u32 = param_values[0].parse()?;
             let y: u32 = param_values[1].parse()?;
