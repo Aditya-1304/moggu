@@ -4,3 +4,5 @@ gradient*
 *.jpeg
 *.png
 /src/bin/image_tui.rs
+# /src/bin/benchmark_*.rs
+/src/bin/benchmark*.rs
