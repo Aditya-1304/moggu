@@ -8,6 +8,10 @@ A lightning-fast, terminal-based image processing application built in Rust that
 
 ## 📺 Demo
 
+[![Moggu demo (click to open full demo)](docs/assets/demo.gif)](https://Aditya-1304.github.io/moggu/)
+
+<p style="margin-top:8px">Click the animation to open the full demo on GitHub Pages</p>
+
 <video src="https://Aditya-1304.github.io/moggu/assets/demo_real_readme.mp4" controls autoplay loop muted width="900"></video>
 
 ## 📸 Screenshots & Gallery
