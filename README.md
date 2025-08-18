@@ -6,6 +6,30 @@ A lightning-fast, terminal-based image processing application built in Rust that
 ![Terminal](https://img.shields.io/badge/Terminal-Interface-blueviolet?style=for-the-badge)
 ![Performance](https://img.shields.io/badge/Performance-<200ms-brightgreen?style=for-the-badge)
 
+## 📺 Demo
+
+<video src="assets/demo_real_readme.mp4" controls autoplay loop muted width="900"></video>
+
+## 📸 Screenshots & Gallery
+
+<details>
+<summary>Click to expand TUI screenshots</summary>
+
+### Main / Home
+[<img src="assets/screenshots/Home.png" alt="Home" width="420">](assets/screenshots/Home.png)
+
+### File & Filter Selection
+| File selection | Filter selection |
+|---:|:---|
+| [<img src="assets/screenshots/file-selection.png" alt="File selection" width="360">](assets/screenshots/file-selection.png) | [<img src="assets/screenshots/filter-selection.png" alt="Filter selection" width="360">](assets/screenshots/filter-selection.png) |
+
+### Parameter / Help / Preview / Result
+| Help | Preview | Result |
+|---:|:---:|:---:|
+| [<img src="assets/screenshots/help.png" alt="Help" width="300">](assets/screenshots/help.png) | [<img src="assets/screenshots/preview.png" alt="Preview" width="300">](assets/screenshots/preview.png) | [<img src="assets/screenshots/result.png" alt="Result" width="300">](assets/screenshots/result.png) |
+
+</details>
+
 ## ⚡ Key Features
 
 ### 🚀 **Blazing Fast Performance**
