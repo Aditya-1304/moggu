@@ -8,7 +8,7 @@ A lightning-fast, terminal-based image processing application built in Rust that
 
 ## 📺 Demo
 
-<video src="assets/demo_real_readme.mp4" controls autoplay loop muted width="900"></video>
+<video src="https://Aditya-1304.github.io/moggu/assets/demo_real_readme.mp4" controls autoplay loop muted width="900"></video>
 
 ## 📸 Screenshots & Gallery
 
