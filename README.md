@@ -288,5 +288,3 @@ viu your-image.jpg
 MIT License - see [LICENSE](LICENSE) for details.
 
 ---
-
-**⚡ Built for speed. Designed for productivity. Perfect for
